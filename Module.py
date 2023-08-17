@@ -10,3 +10,13 @@ class Module:
     """
     index : int
     tanks : list[Tank]
+
+    def __init__(self, index: int) -> None:
+        self.index = index
+        self.tanks = []
+
+    def connect_transfer_tanks(self, transf_from: int, transf_to: int) -> None:
+        tank_from = self.tanks[transf_from]
+        tank_to = self.tanks[transf_to]
+        tank_from.transferable_to.append(tank_to)
+        tank_to.transferable_from.append(tank_from)

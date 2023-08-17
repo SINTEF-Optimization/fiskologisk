@@ -12,3 +12,7 @@ class Year:
     """
     year : int
     periods : list[Period]
+
+    def __init__(self, year: int) -> None:
+        self.year = year
+        self.periods = []

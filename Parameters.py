@@ -16,8 +16,8 @@ class Parameters:
         max_yearly_production            Max legal total production in a year (kg)
         monthly_loss                     Monthly production loss as portion of biomass
         harvest_yield                    Harvest yield as portion of harvested salmon
-        post_smolt_revenue               Revenue for post-smolt in each weight class. Key is weight of weight class
-        harvest_revenue                  Revenue for harvested salmon in each weight class. Key is weight of weight class
+        post_smolt_revenue               Revenue for post-smolt in each weight class. Key is index of weight class
+        harvest_revenue                  Revenue for harvested salmon in each weight class. Key is index of weight class
     """
 
     smolt_price : float
@@ -31,7 +31,7 @@ class Parameters:
     max_tank_density : float
     max_total_biomass : float
     max_yearly_production : float
-    post_smolt_revenue : dict[float, float]
-    harvest_revenue : dict[float, float]
+    post_smolt_revenue : dict[int, float]
+    harvest_revenue : dict[int, float]
     monthly_loss : float
     harvest_yield : float
