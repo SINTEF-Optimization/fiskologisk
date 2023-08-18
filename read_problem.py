@@ -8,24 +8,22 @@ from Tank import Tank
 from Year import Year
 from Period import Period
 from PeriodAfterDeploy import PeriodAfterDeploy
+from WeightClass import WeightClass
 from weight_distribution import get_weight_distributions
 
-def read_environment(file_path : str) -> Environment:
+def read_problem(file_path : str) -> Environment:
 
     environment = Environment()
     file_dir = os.path.dirname(file_path)
-    #another_file = os.path.join(a_dir, "hoi.json")
 
     with open(file_path, "r") as input_file:
         data = json.load(input_file)
 
         read_parameters(environment.parameters, data["parameters"])
         read_modules(environment, data["modules"])
-        weight_classes = read_weight_classes(environment, data["weight_classes"])
-        read_periods(environment, weight_classes, file_dir, data["weight_classes"])
-        #expected_weights = read_expected_weights(os.path.join(file_dir, data["weight_classes"]["expected_weights_file"]))
-        #for row in expected_weights:
-            #print (", ".join(row))
+        read_weight_classes(environment, data["weight_classes"])
+        read_periods(environment, data["periods"])
+        read_post_deploy_relations(environment, file_dir, data["post_deploy"])
 
     return environment
 
@@ -56,76 +54,79 @@ def read_modules(environment : Environment, modules_json) -> None:
     else:
         raise ValueError("Unknown module setup type: " + mod_type)
 
-def read_weight_classes(environment : Environment, w_classes_json) -> list[float]:
+def read_weight_classes(environment : Environment, w_classes_json) -> None:
 
     min_weight = w_classes_json["min_weight"]
     weight_step = w_classes_json["weight_step"]
     classes = w_classes_json["classes"]
-    weights = []
+    post_smolt_revenue = w_classes_json["post_smolt_revenue"]
+    harvest_revenue_pr_kg = w_classes_json["harvest_revenue_pr_kg"]
+    post_smolt_idx = 0
+    harvest_idx = 0
 
     for i in range(classes):
-        weights.append(min_weight + i * weight_step)
-    environment.weight_classes = classes
-    return weights
+        weight = min_weight + i * weight_step
+        while post_smolt_idx + 1 < len(post_smolt_revenue) and post_smolt_revenue[post_smolt_idx + 1][0] <= weight:
+            post_smolt_idx += 1
+        while harvest_idx + 1 < len(harvest_revenue_pr_kg) and harvest_revenue_pr_kg[harvest_idx + 1][0] <= weight:
+            harvest_idx += 1
+        environment.weight_classes.append(WeightClass(weight, post_smolt_revenue[post_smolt_idx][1] / weight, harvest_revenue_pr_kg[harvest_idx][1]))
 
-def read_periods(environment : Environment, weight_classes : list[float], file_dir : str, periods_json) -> None:
+def read_periods(environment : Environment, periods_json) -> None:
 
     first_planning_year = periods_json["first_planning_year"]
     planning_periods = periods_json["planning_periods"]
     pre_planning_periods = periods_json["pre_planning_periods"]
     latest_deploy = periods_json["latest_deploy"]
-    deploy_periods = periods_json["deploy_periods"]
-    transfer_weight = periods_json["transfer_weight"]
-    min_transfer_weight = transfer_weight["minimum"]
-    max_transfer_weight = transfer_weight["maximum"]
-    post_smolt_weight = periods_json["post_smolt_weight"]
-    min_post_smolt_weight = post_smolt_weight["minimum"]
-    max_post_smolt_weight = post_smolt_weight["maximum"]
-    harvest_weight = periods_json["harvest_weight"]
-    min_harvest_weight = harvest_weight["minimum"]
-    max_harvest_weight = harvest_weight["maximum"]
-    weight_variance_portion = periods_json["weight_variance_portion"]
-    expected_weights = read_csv_table(file_dir, periods_json["expected_weights_file"])
-    feed_costs = read_csv_table(file_dir, periods_json["feed_costs_file"])
+    deploy_months = periods_json["deploy_months"]
 
-    # Build tables of distributions into weight classes for different deploy months
-    weight_distributions = get_weight_distributions(weight_classes, expected_weights, weight_variance_portion)
-
-    # Build periods and years
-    dy = pre_planning_periods // 12
+    dy = (pre_planning_periods + 11) // 12
     month_in_year = 12 * dy - pre_planning_periods
     year_idx = first_planning_year - dy
     year = None
-    periods: list[Period] = []
-    deploy_periods: list[Period] = []
 
     for month_idx in range(pre_planning_periods + planning_periods):
         is_planning = month_idx >= pre_planning_periods
-        is_deploy = month_in_year in deploy_periods and month_idx <= latest_deploy + pre_planning_periods
+        is_deploy = month_in_year in deploy_months and month_idx <= latest_deploy + pre_planning_periods
 
-        period = Period(month_idx, month_in_year, is_deploy, is_planning)
-        periods.append(period)
-        if (is_deploy):
-            deploy_periods.append(period)
+        if is_planning or is_deploy:
+            period = Period(month_idx, month_in_year, is_deploy, is_planning)
 
-        if is_planning:
-            if month_in_year == 0:
-                year = Year(year_idx)
-                environment.years.append(year)
-            year.periods.append(period)
-            environment.periods.append(period)
-            if is_deploy:
-                environment.release_periods.append(period)
-        elif is_deploy:
-            environment.preplan_release_periods.append(period)
+            if is_planning:
+                if month_in_year == 0:
+                    year = Year(year_idx)
+                    environment.years.append(year)
+                year.periods.append(period)
+                environment.periods.append(period)
+                if is_deploy:
+                    environment.release_periods.append(period)
+            else:
+                environment.preplan_release_periods.append(period)
 
         month_in_year += 1
         if month_in_year == 12:
             month_in_year = 0
             year_idx += 1
 
-    # Connect deploy periods with transfer/extraction periods
-    for deploy_period in deploy_periods:
+def read_post_deploy_relations(environment : Environment, file_dir : str, post_deploy_json) -> None:
+    transfer_weight = post_deploy_json["transfer_weight"]
+    min_transfer_weight = transfer_weight["minimum"]
+    max_transfer_weight = transfer_weight["maximum"]
+    post_smolt_weight = post_deploy_json["post_smolt_weight"]
+    min_post_smolt_weight = post_smolt_weight["minimum"]
+    max_post_smolt_weight = post_smolt_weight["maximum"]
+    harvest_weight = post_deploy_json["harvest_weight"]
+    min_harvest_weight = harvest_weight["minimum"]
+    max_harvest_weight = harvest_weight["maximum"]
+    weight_variance_portion = post_deploy_json["weight_variance_portion"]
+    expected_weights = read_csv_table(file_dir, post_deploy_json["expected_weights_file"])
+    feed_costs = read_csv_table(file_dir, post_deploy_json["feed_costs_file"])
+
+    # Build tables of distributions into weight classes for different deploy months
+    weight_distributions = get_weight_distributions(environment.weight_classes, expected_weights, weight_variance_portion, max_harvest_weight)
+
+    # Connect deploy periods with production periods afterwards
+    for deploy_period in environment.preplan_release_periods + environment.release_periods:
         deploy_month = deploy_period.month
         max_since_deploy = len(weight_distributions[deploy_month])
         for period in environment.periods:
@@ -141,7 +142,7 @@ def read_periods(environment : Environment, weight_classes : list[float], file_d
                 transfer_growth_factor = 1.0 + 0.5 * (growth_factor - 1)
                 
                 period.deploy_periods.append(deploy_period)
-                deploy_period.periods_after_deploy[period.index] = PeriodAfterDeploy(feed_cost, 0.0, growth_factor, transfer_growth_factor, weight_distributions[deploy_month][since_deploy])
+                deploy_period.periods_after_deploy[period.index] = PeriodAfterDeploy(feed_cost, 0.0, growth_factor, expected_weight, transfer_growth_factor, weight_distributions[deploy_month][since_deploy])
                 if can_harvest or can_extract_post_smolt:
                     period.deploy_periods_for_extract.append(deploy_period)
                     deploy_period.extract_periods.append(period)
@@ -157,21 +158,16 @@ def read_periods(environment : Environment, weight_classes : list[float], file_d
 
 def read_csv_table(dir : str, local_file_path : str) -> list[list[float]]:
 
-    file_path = os.path.join(dir, local_file_path)
-    csv_file = open(file_path, "r")
-    result = list(csv.reader(csv_file, delimiter=","))
-    return result
-
-def read_csv_table_OLD(file_path : str) -> list[list[float]]:
-
     result = []
 
+    file_path = os.path.join(dir, local_file_path)
     with open(file_path, "r") as csv_file:
         csv_reader = csv.reader(csv_file)
-        #for row in list(csv_reader)[1:]:
-            #result.append(row[1:])
-        for row in csv_reader:
-            result.append(row)
+        for row in list(csv_reader)[1:]:
+            float_row = []
+            for cell in row[1:]:
+                float_row.append(float(cell))
+            result.append(float_row)
 
     return result
 

@@ -1,0 +1,14 @@
+{
+    "initial_tank_setup" : [
+        {
+            "tank" : 2,
+            "deploy_period" : 6,
+            "weight" : 100.0
+        },
+        {
+            "tank" : 8,
+            "deploy_period" : 13,
+            "weight" : 80.0
+        }
+    ]
+}

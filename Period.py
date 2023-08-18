@@ -8,7 +8,7 @@ class Period:
     """
 
     index : int
-    """A unique index among all periods. The time between two periods is the number of months between their indices"""
+    """A unique index among all periods. The number of months between the start of two periods is the differences between their indices"""
 
     month : int
     """The month number, in range 0-11"""
@@ -38,7 +38,7 @@ class Period:
     """Possible extract periods for salmon deployed in this period, either for harvest or as post-smolt"""
 
     nonextract_periods : list[Period]
-    """Planning horizon periods when salmon deployed in this period can not be extracted, neither for harvest nor as post-smolt"""
+    """Periods when salmon deployed in this period might still exist but can not be extracted, neither for harvest nor as post-smolt"""
 
     transfer_periods : list[Period]
     """Possible transfer periods for salmon deployed in this period"""

@@ -1,6 +1,7 @@
 import math
+from WeightClass import WeightClass
 
-def get_weight_distributions(weight_classes: list[float], expected_weights: list[list[float]], variance_portion: float, max_weight) -> list[list[list[float]]]:
+def get_weight_distributions(weight_classes: list[WeightClass], expected_weights: list[list[float]], variance_portion: float, max_weight: float) -> list[list[list[float]]]:
     
     distributions = []
 
@@ -14,18 +15,18 @@ def get_weight_distributions(weight_classes: list[float], expected_weights: list
     return distributions
 
 
-def get_weight_distributions_for_mass(mean_weight: float, weight_classes: list[float], variance_portion: float) -> list[float]:
+def get_weight_distributions_for_mass(mean_weight: float, weight_classes: list[WeightClass], variance_portion: float) -> list[float]:
 
     variance = mean_weight * variance_portion
-    normal_distributions = []
-    for weight in weight_classes:
-        diff = (weight - mean_weight) / variance
-        normal_distributions.append(math.exp(-0.5 * diff * diff))
-    sum_distr = sum(normal_distributions)
-
     distributions = []
-    for i in range(len(weight_classes)):
-        distributions.append(normal_distributions[i] * weight_classes[i] / (sum_distr * mean_weight))
-    
-    return distributions
+    for weight_class in weight_classes:
+        weight = weight_class.weight
+        diff = (weight - mean_weight) / variance
+        distributions.append(weight * math.exp(-0.5 * diff * diff))
+    sum_distr = sum(distributions)
 
+    normalized_distributions = []
+    for distr in distributions:
+        normalized_distributions.append(distr / sum_distr)
+    
+    return normalized_distributions
