@@ -13,7 +13,20 @@ from weight_distribution import get_weight_distributions
 
 def read_problem(file_path : str) -> Environment:
 
+    file_dir = os.path.dirname(file_path)
+
+    with open(file_path, "r") as input_file:
+        data = json.load(input_file)
+        environment = read_core_problem(file_dir, data["core_setup"])
+        if "initial_tank_setup" in data:
+            read_initial_tank_setup(environment, data["initial_tank_setup"])
+
+    return environment
+
+def read_core_problem(dir : str, local_file_path : str) -> Environment:
+
     environment = Environment()
+    file_path = os.path.join(dir, local_file_path)
     file_dir = os.path.dirname(file_path)
 
     with open(file_path, "r") as input_file:
@@ -184,3 +197,17 @@ def add_four_tank_modules(environment : Environment, modules : int, inv_tank_vol
         module.connect_transfer_tanks(0, 1)
         module.connect_transfer_tanks(0, 2)
         module.connect_transfer_tanks(1, 3)
+
+def read_initial_tank_setup(environment: Environment, tank_setups) -> None:
+
+    all_tanks = [ t for module in environment.modules for t in module.tanks ]    
+
+    for tank_setup in tank_setups["initial_tank_setup"]:
+        tank_index = tank_setup["tank"]
+        deploy_period_index = tank_setup["deploy_period"]
+        weight = tank_setup["weight"]
+
+        tank = next(t for t in all_tanks if t.index == tank_index)
+        deploy_period = next(p for p in environment.periods if p.index == deploy_period_index)
+        tank.initial_use = True
+        deploy_period.initial_weights[tank_index] = weight

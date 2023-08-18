@@ -4,7 +4,7 @@ from WeightClass import WeightClass
 from read_problem import read_problem
 
 def read_and_test_thesis() -> None:
-    environment = read_problem("Data\\Foesund_Strandkleiv_thesis\CoreProblem.json")
+    environment = read_problem("Data\\Foesund_Strandkleiv_thesis\Iteration_0.json")
     print_weight_classes(environment.weight_classes)
     print_deploy_weights("Pre-planning deploy periods", environment.preplan_release_periods)
     print_deploy_weights("Planning horizon deploy periods", environment.release_periods)
