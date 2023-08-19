@@ -150,7 +150,7 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
 
                 expected_weight = expected_weights[deploy_month][since_deploy]
                 feed_cost = feed_costs[deploy_month][since_deploy]
-                oxygen_cost = read_csv_table[deploy_month][since_deploy] * oxygen_price
+                oxygen_cost = oxygen_consumptions[deploy_month][since_deploy] * oxygen_price
                 can_extract_post_smolt = expected_weight > min_post_smolt_weight and expected_weight < max_post_smolt_weight
                 can_transfer = expected_weight > min_transfer_weight and expected_weight < max_transfer_weight
                 can_harvest = expected_weight > min_harvest_weight and expected_weight < max_harvest_weight
