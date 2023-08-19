@@ -59,6 +59,8 @@
             "maximum" : 5.5
         },
         "expected_weights_file" : "ExpectedWeights.csv",
-        "feed_costs_file" : "FeedCosts.csv"
+        "feed_costs_file" : "FeedCosts.csv",
+        "oxygen_price" : 0.0026,
+        "oxygen_consumption_file" : "OxygenConsumption.csv"
     }
 }

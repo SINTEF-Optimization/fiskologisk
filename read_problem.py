@@ -134,6 +134,8 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
     weight_variance_portion = post_deploy_json["weight_variance_portion"]
     expected_weights = read_csv_table(file_dir, post_deploy_json["expected_weights_file"])
     feed_costs = read_csv_table(file_dir, post_deploy_json["feed_costs_file"])
+    oxygen_price = post_deploy_json["oxygen_price"]
+    oxygen_consumptions = read_csv_table(file_dir, post_deploy_json["oxygen_consumption_file"])
 
     # Build tables of distributions into weight classes for different deploy months
     weight_distributions = get_weight_distributions(environment.weight_classes, expected_weights, weight_variance_portion, max_harvest_weight)
@@ -148,6 +150,7 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
 
                 expected_weight = expected_weights[deploy_month][since_deploy]
                 feed_cost = feed_costs[deploy_month][since_deploy]
+                oxygen_cost = read_csv_table[deploy_month][since_deploy] * oxygen_price
                 can_extract_post_smolt = expected_weight > min_post_smolt_weight and expected_weight < max_post_smolt_weight
                 can_transfer = expected_weight > min_transfer_weight and expected_weight < max_transfer_weight
                 can_harvest = expected_weight > min_harvest_weight and expected_weight < max_harvest_weight
@@ -155,7 +158,7 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
                 transfer_growth_factor = 1.0 + 0.5 * (growth_factor - 1)
                 
                 period.deploy_periods.append(deploy_period)
-                deploy_period.periods_after_deploy[period.index] = PeriodAfterDeploy(feed_cost, 0.0, growth_factor, expected_weight, transfer_growth_factor, weight_distributions[deploy_month][since_deploy])
+                deploy_period.periods_after_deploy[period.index] = PeriodAfterDeploy(feed_cost, oxygen_cost, growth_factor, expected_weight, transfer_growth_factor, weight_distributions[deploy_month][since_deploy])
                 if can_harvest or can_extract_post_smolt:
                     period.deploy_periods_for_extract.append(deploy_period)
                     deploy_period.extract_periods.append(period)
