@@ -22,8 +22,8 @@ def print_deploy_weights(heading: str, deploy_periods: list[Period]) -> None:
     for depl_p in deploy_periods:
         line = "Month " + str(depl_p.index) + " => "
         growths = []
-        for period_idx in sorted(depl_p.periods_after_deploy):
-            growths.append(str(period_idx) + ":" + str(depl_p.periods_after_deploy[period_idx].growth_factor))
+        for per_after_depl in depl_p.periods_after_deploy:
+            growths.append(str(per_after_depl.period.index) + ":" + str(per_after_depl.growth_factor))
         line += ", ".join(growths)
         print(line)
 
@@ -31,10 +31,9 @@ def print_weight_class_distributions(deploy_periods: list[Period]) -> None:
     print()
     print("Weight class distributions")
     for depl_p in deploy_periods:
-        for period_idx in sorted(depl_p.periods_after_deploy):
-            per_after_depl = depl_p.periods_after_deploy[period_idx]
-            print("Dep-p=" + str(depl_p.index) + " p=" + str(period_idx) + " ExpW = " + str(per_after_depl.expected_weight) + " Distr-sum: " + str(sum(per_after_depl.weight_distribution)))
-            print("Dep-p=" + str(depl_p.index) + " p=" + str(period_idx) + " Distr: " + str(per_after_depl.weight_distribution))
+        for per_after_depl in depl_p.periods_after_deploy:
+            print("Dep-p=" + str(depl_p.index) + " p=" + str(per_after_depl.period.index) + " ExpW = " + str(per_after_depl.expected_weight) + " Distr-sum: " + str(sum(per_after_depl.weight_distribution)))
+            print("Dep-p=" + str(depl_p.index) + " p=" + str(per_after_depl.period.index) + " Distr: " + str(per_after_depl.weight_distribution))
 
 if __name__ == "__main__":
     read_and_test_thesis()

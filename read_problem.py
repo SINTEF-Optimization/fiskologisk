@@ -7,7 +7,7 @@ from Module import Module
 from Tank import Tank
 from Year import Year
 from Period import Period
-from PeriodAfterDeploy import PeriodAfterDeploy
+from Period import PeriodAfterDeploy
 from WeightClass import WeightClass
 from weight_distribution import get_weight_distributions
 
@@ -226,7 +226,7 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
                 growth_factor = expected_weights[deploy_month][since_deploy + 1] / expected_weight
                 transfer_growth_factor = 1.0 + 0.5 * (growth_factor - 1)
                 weight_distribution = weight_distributions[deploy_month][since_deploy]
-                period_after_deploy = PeriodAfterDeploy(expected_weight, feed_cost, oxygen_cost, growth_factor, transfer_growth_factor, weight_distribution)
+                period_after_deploy = PeriodAfterDeploy(period, expected_weight, feed_cost, oxygen_cost, growth_factor, transfer_growth_factor, weight_distribution)
 
                 can_extract_post_smolt = expected_weight > min_post_smolt_weight and expected_weight < max_post_smolt_weight
                 can_transfer = expected_weight > min_transfer_weight and expected_weight < max_transfer_weight
