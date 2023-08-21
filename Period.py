@@ -42,8 +42,11 @@ class Period:
     transfer_periods : list[Period]
     """Possible transfer periods for salmon deployed in this period"""
 
-    periods_after_deploy : list[PeriodAfterDeploy]
-    """Information related to specific periods for salmon deployed this period"""
+    periods_after_deploy : list[Period]
+    """Periods that could have salmon deployed this period"""
+
+    periods_after_deploy_data : dict[int, PeriodAfterDeployData]
+    """Information related to specific periods for salmon deployed this period. Key is period index"""
 
     initial_weights : dict[int, float]
     """Weight of salmon deployed in this period in each tank. Only used if this is a period prior to planning horizon. Key is tank index. Part of initial conditions to the MIP problem."""
@@ -62,18 +65,20 @@ class Period:
         self.nonextract_periods = []
         self.transfer_periods = []
         self.periods_after_deploy = []
+        self.periods_after_deploy_data = {}
         self.initial_weights = {}
 
-    def add_after_deploy(self, period: Period, period_after_deploy: PeriodAfterDeploy, can_extract: bool) -> None:
+    def add_after_deploy(self, period: Period, period_after_deploy_data: PeriodAfterDeployData, can_extract: bool) -> None:
         """Connects this period to a period that might hold salmon deployed in this period
 
         args:
             - period: 'Period' The period that might hold salmon deployed in this period
-            - period_after_deploy: 'PeriodAfterDeploy' Collection of data related to the input period for salmon deployed in this period
+            - period_after_deploy_data: 'PeriodAfterDeployData' Collection of data related to the input period for salmon deployed in this period
             - can_extract: 'bool' Whether salmon deployed in this period can be extracted in the input period, either for harvest or as post-smolt
         """
 
-        self.periods_after_deploy.append(period_after_deploy)
+        self.periods_after_deploy.append(period)
+        self.periods_after_deploy_data[period.index] = period_after_deploy_data
         period.deploy_periods.append(self)
         if can_extract:
             period.deploy_periods_for_extract.append(self)
@@ -108,7 +113,7 @@ class Period:
         """
         self.harvest_periods.append(period)
 
-class PeriodAfterDeploy:
+class PeriodAfterDeployData:
     """
     Collection of data for a period P1 for salmon deployed in period P0
     """

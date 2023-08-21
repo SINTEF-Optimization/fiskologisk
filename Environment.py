@@ -23,6 +23,9 @@ class Environment:
     """The periods in the planning horizon"""
 
     release_periods : list[Period]
+    """The periods when salmon can be deployed/released, both prior to and in planning horizon"""
+
+    plan_release_periods : list[Period]
     """The periods in the planning horizon when salmon can be deployed/released"""
 
     preplan_release_periods : list[Period]
@@ -40,6 +43,7 @@ class Environment:
         self.weight_classes = []
         self.periods = []
         self.release_periods = []
+        self.plan_release_periods = []
         self.preplan_release_periods = []
         self.years = []
         self.parameters = Parameters()

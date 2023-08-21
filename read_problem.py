@@ -7,7 +7,7 @@ from Module import Module
 from Tank import Tank
 from Year import Year
 from Period import Period
-from Period import PeriodAfterDeploy
+from Period import PeriodAfterDeployData
 from WeightClass import WeightClass
 from weight_distribution import get_weight_distributions
 
@@ -162,16 +162,19 @@ def read_periods(environment : Environment, periods_json) -> None:
         if is_planning or is_deploy:
             period = Period(month_idx, month_in_year, is_deploy, is_planning)
 
+            if is_deploy:
+                environment.release_periods.append(period)
+                if is_planning:
+                    environment.plan_release_periods.append(period)
+                else:
+                    environment.preplan_release_periods.append(period)
+
             if is_planning:
                 if month_in_year == 0:
                     year = Year(year_idx)
                     environment.years.append(year)
                 year.periods.append(period)
                 environment.periods.append(period)
-                if is_deploy:
-                    environment.release_periods.append(period)
-            else:
-                environment.preplan_release_periods.append(period)
 
         month_in_year += 1
         if month_in_year == 12:
@@ -213,7 +216,7 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
     weight_distributions = get_weight_distributions(environment.weight_classes, expected_weights, weight_variance_portion, max_harvest_weight)
 
     # Connect deploy periods with production periods afterwards
-    for deploy_period in environment.preplan_release_periods + environment.release_periods:
+    for deploy_period in environment.release_periods:
         deploy_month = deploy_period.month
         max_since_deploy = len(weight_distributions[deploy_month])
         for period in environment.periods:
@@ -226,13 +229,13 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
                 growth_factor = expected_weights[deploy_month][since_deploy + 1] / expected_weight
                 transfer_growth_factor = 1.0 + 0.5 * (growth_factor - 1)
                 weight_distribution = weight_distributions[deploy_month][since_deploy]
-                period_after_deploy = PeriodAfterDeploy(period, expected_weight, feed_cost, oxygen_cost, growth_factor, transfer_growth_factor, weight_distribution)
+                period_after_deploy_data = PeriodAfterDeployData(period, expected_weight, feed_cost, oxygen_cost, growth_factor, transfer_growth_factor, weight_distribution)
 
                 can_extract_post_smolt = expected_weight > min_post_smolt_weight and expected_weight < max_post_smolt_weight
                 can_transfer = expected_weight > min_transfer_weight and expected_weight < max_transfer_weight
                 can_harvest = expected_weight > min_harvest_weight and expected_weight < max_harvest_weight
                 
-                deploy_period.add_after_deploy(period, period_after_deploy, can_harvest or can_extract_post_smolt)
+                deploy_period.add_after_deploy(period, period_after_deploy_data, can_harvest or can_extract_post_smolt)
                 if can_transfer:
                     deploy_period.add_transfer_period(period)
                 if can_extract_post_smolt:

@@ -7,8 +7,9 @@ def read_and_test_thesis() -> None:
     environment = read_problem("Data\\Foesund_Strandkleiv_thesis\Iteration_0.json")
     print_weight_classes(environment.weight_classes)
     print_deploy_weights("Pre-planning deploy periods", environment.preplan_release_periods)
-    print_deploy_weights("Planning horizon deploy periods", environment.release_periods)
-    print_weight_class_distributions(environment.release_periods)
+    print_deploy_weights("Planning horizon deploy periods", environment.plan_release_periods)
+    print_weight_class_distributions(environment.plan_release_periods)
+
 
 def print_weight_classes(weight_classes: list[WeightClass]):
     print()
@@ -22,8 +23,8 @@ def print_deploy_weights(heading: str, deploy_periods: list[Period]) -> None:
     for depl_p in deploy_periods:
         line = "Month " + str(depl_p.index) + " => "
         growths = []
-        for per_after_depl in depl_p.periods_after_deploy:
-            growths.append(str(per_after_depl.period.index) + ":" + str(per_after_depl.growth_factor))
+        for period in depl_p.periods_after_deploy:
+            growths.append(str(period.index) + ":" + str(depl_p.periods_after_deploy_data[period.index].growth_factor))
         line += ", ".join(growths)
         print(line)
 
@@ -31,9 +32,10 @@ def print_weight_class_distributions(deploy_periods: list[Period]) -> None:
     print()
     print("Weight class distributions")
     for depl_p in deploy_periods:
-        for per_after_depl in depl_p.periods_after_deploy:
-            print("Dep-p=" + str(depl_p.index) + " p=" + str(per_after_depl.period.index) + " ExpW = " + str(per_after_depl.expected_weight) + " Distr-sum: " + str(sum(per_after_depl.weight_distribution)))
-            print("Dep-p=" + str(depl_p.index) + " p=" + str(per_after_depl.period.index) + " Distr: " + str(per_after_depl.weight_distribution))
+        for period in depl_p.periods_after_deploy:
+            per_after_depl_data = depl_p.periods_after_deploy_data[period.index]
+            print("Dep-p=" + str(depl_p.index) + " p=" + str(period.index) + " ExpW = " + str(per_after_depl_data.expected_weight) + " Distr-sum: " + str(sum(per_after_depl_data.weight_distribution)))
+            print("Dep-p=" + str(depl_p.index) + " p=" + str(period.index) + " Distr: " + str(per_after_depl_data.weight_distribution))
 
 if __name__ == "__main__":
     read_and_test_thesis()
