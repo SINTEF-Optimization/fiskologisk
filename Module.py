@@ -16,6 +16,12 @@ class Module:
         self.tanks = []
 
     def connect_transfer_tanks(self, transf_from: int, transf_to: int) -> None:
+        """Connects two tanks in the module that might transfer salmon
+        
+        args:
+            - transf_from: 'int' The index among the module tanks of the tank salmon is transfered from
+            - transf_to: 'int' The index among the module tanks of the tank salmon is transfered TO
+        """
         tank_from = self.tanks[transf_from]
         tank_to = self.tanks[transf_to]
         tank_from.transferable_to.append(tank_to)

@@ -64,3 +64,47 @@ class Period:
         self.transfer_periods = []
         self.periods_after_deploy = {}
         self.initial_weights = {}
+
+    def add_after_deploy(self, period: Period, period_after_deploy: PeriodAfterDeploy, can_extract: bool) -> None:
+        """Connects this period to a period that might hold salmon deployed in this period
+
+        args:
+            - period: 'Period' The period that might hold salmon deployed in this period
+            - period_after_deploy: 'PeriodAfterDeploy' Collection of data related to the input period for salmon deployed in this period
+            - can_extract: 'bool' Whether salmon deployed in this period can be extracted in the input period, either for harvest or as post-smolt
+        """
+
+        self.periods_after_deploy[period.index] = period_after_deploy
+        period.deploy_periods.append(self)
+        if can_extract:
+            period.deploy_periods_for_extract.append(self)
+            self.extract_periods.append(period)
+        else:
+            self.nonextract_periods.append(period)
+
+    def add_transfer_period(self, period: Period) -> None:
+        """Adds a possible transfer period for salmon deployed in this period
+
+        args:
+            - period: 'Period' The period that might transfer salmon deployed in this period
+        """
+
+        self.transfer_periods.append(period)
+        period.deploy_periods_for_transfer.append(self)
+
+    def add_postsmolt_extract_period(self, period: Period) -> None:
+        """Adds a possible post-smolt extract period for salmon deployed in this period
+
+        args:
+            - period: 'Period' The period that might extract post-smolt from salmon deployed in this period
+        """
+
+        self.postsmolt_extract_periods.append(period)
+
+    def add_harvest_period(self, period: Period) -> None:
+        """Adds a possible harvest period for salmon deployed in this period
+
+        args:
+            - period: 'Period' The period that might harvest salmon deployed in this period
+        """
+        self.harvest_periods.append(period)
