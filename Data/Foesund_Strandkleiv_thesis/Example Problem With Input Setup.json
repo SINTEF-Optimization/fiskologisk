@@ -1,0 +1,4 @@
+{
+    "core_setup" : "CoreProblem.json",
+    "initial_tank_setup" : "Example Input Setup.json"
+}
