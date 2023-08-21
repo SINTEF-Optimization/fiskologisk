@@ -1,4 +1,5 @@
 from Module import Module
+from Tank import Tank
 from Period import Period
 from Year import Year
 from Parameters import Parameters
@@ -8,8 +9,12 @@ class Environment:
     """
     The top class of the model used for building the MIP problem for landbased salmon farming
     """
+
     modules : list[Module]
     """The modules (units of tanks) in the model"""
+
+    tanks : list[Tank]
+    """The tanks in the model"""
 
     weight_classes : list[WeightClass]
     """The weight classes in the model"""
@@ -31,6 +36,7 @@ class Environment:
 
     def __init__(self) -> None:
         self.modules = []
+        self.tanks = []
         self.weight_classes = []
         self.periods = []
         self.release_periods = []

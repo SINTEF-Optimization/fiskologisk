@@ -282,6 +282,7 @@ def add_four_tank_modules(environment : Environment, modules : int, inv_tank_vol
         for tank_idx in range(4):
             tank = Tank(4 * mod_idx + tank_idx, inv_tank_volume)
             module.tanks.append(tank)
+            environment.tanks.append(tank)
 
         module.connect_transfer_tanks(0, 1)
         module.connect_transfer_tanks(0, 2)
@@ -302,7 +303,7 @@ def read_initial_tank_setup(environment: Environment, tank_setups) -> None:
         deploy_period_index = tank_setup["deploy_period"]
         weight = tank_setup["weight"]
 
-        tank = next(t for t in all_tanks if t.index == tank_index)
+        tank = next(t for t in environment.tanks if t.index == tank_index)
         deploy_period = next(p for p in environment.preplan_release_periods if p.index == deploy_period_index)
         tank.initial_use = True
         deploy_period.initial_weights[tank_index] = weight
