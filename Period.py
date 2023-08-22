@@ -48,9 +48,6 @@ class Period:
     periods_after_deploy_data : dict[int, PeriodAfterDeployData]
     """Information related to specific periods for salmon deployed this period. Key is period index"""
 
-    initial_weights : dict[int, float]
-    """Weight of salmon deployed in this period in each tank. Only used if this is a period prior to planning horizon. Key is tank index. Part of initial conditions to the MIP problem."""
-
     def __init__(self, index: int, month: int, is_deploy: bool, is_planning: bool) -> None:
         self.index = index
         self.month = month
@@ -66,7 +63,6 @@ class Period:
         self.transfer_periods = []
         self.periods_after_deploy = []
         self.periods_after_deploy_data = {}
-        self.initial_weights = {}
 
     def add_after_deploy(self, period: Period, period_after_deploy_data: PeriodAfterDeployData, can_extract: bool) -> None:
         """Connects this period to a period that might hold salmon deployed in this period

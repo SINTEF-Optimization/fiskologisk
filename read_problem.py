@@ -307,6 +307,5 @@ def read_initial_tank_setup(environment: Environment, tank_setups) -> None:
         weight = tank_setup["weight"]
 
         tank = next(t for t in environment.tanks if t.index == tank_index)
-        deploy_period = next(p for p in environment.preplan_release_periods if p.index == deploy_period_index)
-        tank.initial_use = True
-        deploy_period.initial_weights[tank_index] = weight
+        tank.initial_weight = weight
+        tank.initial_deploy_period = deploy_period_index
