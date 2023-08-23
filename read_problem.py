@@ -219,9 +219,22 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
     for deploy_period in environment.release_periods:
         deploy_month = deploy_period.month
         max_since_deploy = len(weight_distributions[deploy_month])
+
+        # First find index of last possible extraction period
+        last_extract_index = -1
         for period in environment.periods:
             since_deploy = period.index - deploy_period.index
             if since_deploy >= 0 and since_deploy < max_since_deploy:
+                expected_weight = expected_weights[deploy_month][since_deploy]
+
+                can_extract_post_smolt = expected_weight > min_post_smolt_weight and expected_weight < max_post_smolt_weight
+                can_harvest = expected_weight > min_harvest_weight and expected_weight < max_harvest_weight
+                if can_extract_post_smolt or can_harvest:
+                    last_extract_index = period.index
+
+        for period in environment.periods:
+            since_deploy = period.index - deploy_period.index
+            if since_deploy >= 0 and since_deploy < max_since_deploy and period.index <= last_extract_index:
 
                 expected_weight = expected_weights[deploy_month][since_deploy]
                 feed_cost = feed_costs[deploy_month][since_deploy]

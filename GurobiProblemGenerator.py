@@ -321,39 +321,38 @@ class GurobiProblemGenerator:
 
         loss = self.environment.parameters.monthly_loss
         for dep_p in self.environment.release_periods:
-            if len(dep_p.extract_periods) > 0:
-                last_p = dep_p.extract_periods[-1]
-                for p in dep_p.periods_after_deploy:
-                    if (p.index < last_p.index):
-                        p_data = dep_p.periods_after_deploy_data[p.index]
-                        growth_factor = (1.0 - loss) * p_data.growth_factor
-                        transf_growth_factor = (1.0 - loss) * p_data.transferred_growth_factor
+            if len(dep_p.periods_after_deploy) > 0:
+                for p in dep_p.periods_after_deploy[:-1]:
+                    p_data = dep_p.periods_after_deploy_data[p.index]
+                    growth_factor = (1.0 - loss) * p_data.growth_factor
+                    transf_growth_factor = (1.0 - loss) * p_data.transferred_growth_factor
 
-                        is_transfer = p in dep_p.transfer_periods
-                        is_extract = p in dep_p.extract_periods
+                    is_transfer = p in dep_p.transfer_periods
+                    is_extract = p in dep_p.extract_periods
 
-                        for t in self.environment.tanks:
-                            next_w_expr = gp.LinExpr()
+                    for t in self.environment.tanks:
+                        next_w_expr = gp.LinExpr()
 
-                            # Add updated weight from salmon at start of period (5.14, 5.15, 5.16, 5.17)
-                            next_w_expr.addTerms(growth_factor, self.population_weight_variable(dep_p, t, p))
-                            
-                            if is_transfer and self.allow_transfer:
-                                # Subtract weight from salmon transfered out during period (5.15, 5.16)
-                                for to_t in t.transferable_to:
-                                    next_w_expr.addTerms(-growth_factor, self.transfer_weight_variable(dep_p, t, to_t, p))
+                        # Add updated weight from salmon at start of period (5.14, 5.15, 5.16, 5.17)
+                        next_w_expr.addTerms(growth_factor, self.population_weight_variable(dep_p, t, p))
+                        
+                        if is_transfer and self.allow_transfer:
+                            # Subtract weight from salmon transfered out during period (5.15, 5.16)
+                            for to_t in t.transferable_to:
+                                next_w_expr.addTerms(-growth_factor, self.transfer_weight_variable(dep_p, t, to_t, p))
 
-                                # Add weight from salmon transfered in during period (5.15, 5.16)
-                                for from_t in t.transferable_from:
-                                    next_w_expr.addTerms(transf_growth_factor, self.transfer_weight_variable(dep_p, from_t, t, p))
-                            
-                            if is_extract:
-                                # Subtract weight from salmon extracted during period (5.16, 5.17)
-                                next_w_expr.addTerms(-growth_factor, self.extract_weight_variable(dep_p, t, p))
-                            next_p = next(np for np in dep_p.periods_after_deploy if np.index == p.index + 1)
-                            model.addConstr(self.population_weight_variable(dep_p, t, next_p) == next_w_expr, name = "next_period_mass_%s,%s,%s"%(dep_p.index, t.index, p.index))
+                            # Add weight from salmon transfered in during period (5.15, 5.16)
+                            for from_t in t.transferable_from:
+                                next_w_expr.addTerms(transf_growth_factor, self.transfer_weight_variable(dep_p, from_t, t, p))
+                        
+                        if is_extract:
+                            # Subtract weight from salmon extracted during period (5.16, 5.17)
+                            next_w_expr.addTerms(-growth_factor, self.extract_weight_variable(dep_p, t, p))
+                        next_p = next(np for np in dep_p.periods_after_deploy if np.index == p.index + 1)
+                        model.addConstr(self.population_weight_variable(dep_p, t, next_p) == next_w_expr, name = "next_period_mass_%s,%s,%s"%(dep_p.index, t.index, p.index))
 
-                # All salmon in last possible period must be harvested (5.18)
+                # All salmon in last possible period must be extracted (5.18)
+                last_p = dep_p.periods_after_deploy[-1]
                 for t in self.environment.tanks:
                     model.addConstr(self.population_weight_variable(dep_p, t, last_p) == self.extract_weight_variable(dep_p, t, last_p), name = "extract_last_period_%s,%s"%(dep_p.index, t.index))
 
