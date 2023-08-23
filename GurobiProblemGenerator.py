@@ -48,6 +48,7 @@ class GurobiProblemGenerator:
     def add_variables(self, model: gp.Model) -> None:
 
         # Continous variable: Extracted salmon from deploy period from tank at period
+        self.extract_weight_variables = {}
         for dep_p in self.environment.release_periods:
             for p in dep_p.extract_periods:
                 for t in self.environment.tanks:
@@ -56,6 +57,7 @@ class GurobiProblemGenerator:
                     self.extract_weight_variables[key] = var
 
         # Continous variable: Population weight from deploy period in tank at period
+        self.population_weight_variables = {}
         for dep_p in self.environment.release_periods:
             for p in dep_p.periods_after_deploy:
                 set_init = p == self.environment.periods[0] and p != dep_p
@@ -67,6 +69,7 @@ class GurobiProblemGenerator:
                         var.Start = t.initial_weight if t.initial_weight > 0 and t.initial_deploy_period == dep_p.index else 0.0
 
         # Continous variable: Transferred salmon from deploy period from tank to tank in period
+        self.transfer_weight_variables = {}
         if self.allow_transfer:
             for dep_p in self.environment.release_periods:
                 for p in dep_p.transfer_periods:
@@ -77,6 +80,7 @@ class GurobiProblemGenerator:
                             self.transfer_weight_variables[key] = var
 
         # Binary variable: Tank contains salmon in period
+        self.contains_salmon_variables = {}
         for t in self.environment.tanks:
             for p in self.environment.periods:
                 key = (t.index, p.index)
@@ -84,6 +88,7 @@ class GurobiProblemGenerator:
                 self.contains_salmon_variables[key] = var
 
         # Binary variable: Smolt is deployed in module in period
+        self.smolt_deployed_variables = {}
         for m in self.environment.modules:
             for dep_p in self.environment.plan_release_periods:
                 key = (m.index, dep_p.index)
@@ -91,6 +96,7 @@ class GurobiProblemGenerator:
                 self.smolt_deployed_variables[key] = var
 
         # Binary variable: Salmon is extracted from tank in period
+        self.salmon_extracted_variables = {}
         for t in self.environment.tanks:
             for p in self.environment.periods:
                 key = (t.index, p.index)
@@ -98,6 +104,7 @@ class GurobiProblemGenerator:
                 self.salmon_extracted_variables[key] = var
 
         # Binary variable: Salmon is transferred to tank in period
+        self.salmon_transferred_variables = {}
         if self.allow_transfer:
             for t in self.environment.tanks:
                 for p in self.environment.periods:
