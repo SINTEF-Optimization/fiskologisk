@@ -1,16 +1,21 @@
 from Environment import Environment
 from Period import Period
 from WeightClass import WeightClass
+from GurobiProblemGenerator import GurobiProblemGenerator
 from read_problem import read_problem
 
 def read_and_test_thesis() -> None:
-    environment = read_problem("Data\\Foesund_Strandkleiv_thesis\Iteration_0.json")
+    environment = read_problem("Data\Foesund_Strandkleiv_thesis\Iteration_0.json")
     print_weight_classes(environment.weight_classes)
     print_deploy_weights("Pre-planning deploy periods", environment.preplan_release_periods)
     print_deploy_weights("Planning horizon deploy periods", environment.plan_release_periods)
     print_weight_class_distributions(environment.plan_release_periods)
 
-
+def read_and_test_thesis_and_model() -> None:
+    environment = read_problem("Data\Foesund_Strandkleiv_thesis\Iteration_0.json")
+    gpm = GurobiProblemGenerator(environment)
+    model = gpm.build_model()
+    
 def print_weight_classes(weight_classes: list[WeightClass]):
     print()
     print("Weight classes")
@@ -38,4 +43,5 @@ def print_weight_class_distributions(deploy_periods: list[Period]) -> None:
             print("Dep-p=" + str(depl_p.index) + " p=" + str(period.index) + " Distr: " + str(per_after_depl_data.weight_distribution))
 
 if __name__ == "__main__":
-    read_and_test_thesis()
+    #read_and_test_thesis()
+    read_and_test_thesis_and_model()
