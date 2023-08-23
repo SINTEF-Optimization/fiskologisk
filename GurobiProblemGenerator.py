@@ -7,22 +7,52 @@ from Module import Module
 from Tank import Tank
 
 class ObjectiveProfile(Enum):
+    """
+    Profile for setup of objective in MIP problem
+    """
+
     PROFIT = 1
+    """Maximize revenues minus costs (NOK)"""
+
     BIOMASS = 2
+    """Maximize weight of extracted post-smolt and harvested salmon from production facility"""
 
 class GurobiProblemGenerator:
+    """
+    MIP problem generator for landbased salmon farming.
+    The generator takes in the setup of the production facility and time periods for the planning horizon,
+    adds the variables and constraints and builds the objective function into a Gurobi model.
+    """
 
     environment: Environment
+    """Holds the model used for building the MIP problem"""
+
     objective_profile: ObjectiveProfile
+    """The profile of the objective in the problem. Default is PROFIT"""
+
     allow_transfer: bool
+    """Whether transfer between tanks in a module is allowed. Default is True"""
 
     extract_weight_variables: dict[(int, int, int), gp.Var]
+    """The continous MIP variables for weight of salmon extracted from the tanks for post-smolt or harvesting. Key is deploy period, tank and extract period"""
+
     population_weight_variables: dict[(int, int, int), gp.Var]
+    """The continous MIP variables for salmon weight in a tank at a period. Key is deploy period, tank and period the mass is given for"""
+
     transfer_weight_variables: dict[(int, int, int, int), gp.Var]
+    """The continous MIP variables for weight of salmon transfered at a period. Key is deploy period, tank transferred from, tank transferred to and period when the transfer takes place"""
+
     contains_salmon_variables: dict[(int, int), gp.Var]
+    """The binary MIP variables for whether tanks hold salmon at a given period. Key is tank and period"""
+
     smolt_deployed_variables: dict[(int, int), gp.Var]
+    """The binary MIP variables for whether salmon has been deployed in a module at a given period. Key is module and deploy period within the planning horizon"""
+
     salmon_extracted_variables: dict[(int, int), gp.Var]
+    """The binary MIP variables for whether salmon was extracted from a tank at the end of a given period. Key is tank and period"""
+
     salmon_transferred_variables: dict[(int, int), gp.Var]
+    """The binary MIP variables for whether salmon was transferred to a tank at a given period. Key is tank transferred to and period"""
 
     def __init__(self, environment: Environment, objective_profile: ObjectiveProfile = ObjectiveProfile.PROFIT, allow_transfer: bool = True) -> None:
         self.environment = environment
@@ -38,6 +68,11 @@ class GurobiProblemGenerator:
         self.salmon_transferred_variables = {}
 
     def build_model(self) -> gp.Model:
+        """Builds the MIP model
+
+        returns:
+            The generated MIP model
+        """
 
         model = gp.Model()
         self.add_variables(model)
@@ -46,6 +81,11 @@ class GurobiProblemGenerator:
         return model
 
     def add_variables(self, model: gp.Model) -> None:
+        """Generates all variables for the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the variables into.
+        """
 
         # Continous variable: Extracted salmon from deploy period from tank at period
         self.extract_weight_variables = {}
@@ -113,6 +153,12 @@ class GurobiProblemGenerator:
                     self.salmon_transferred_variables[key] = var
 
     def add_objective(self, model: gp.Model) -> None:
+        """Builds the objective function of the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to set the objective function for
+        """
+
         match self.objective_profile:
             case ObjectiveProfile.PROFIT:
                 self.add_profit_objective(model)
@@ -122,6 +168,11 @@ class GurobiProblemGenerator:
                 raise ValueError("Unknown objective profile")
 
     def add_profit_objective(self, model: gp.Model) -> None:
+        """Builds the profit maximizing objective function of the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to set the objective function for
+        """
 
         obj_expr = gp.LinExpr()
         parameters = self.environment.parameters
@@ -188,6 +239,11 @@ class GurobiProblemGenerator:
         model.setObjective(obj_expr, GRB.MAXIMIZE)
 
     def add_biomass_objective(self, model: gp.Model) -> None:
+        """Builds the extracted mass maximizing objective function of the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to set the objective function for
+        """
 
         obj_expr = gp.LinExpr()
 
@@ -199,6 +255,11 @@ class GurobiProblemGenerator:
         model.setObjective(obj_expr, GRB.MAXIMIZE)
 
     def add_constraints(self, model: gp.Model) -> None:
+        """Adds all the constraints to the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         self.add_smolt_deployment_constraints(model)
         self.add_extraction_constraints(model)
@@ -210,6 +271,11 @@ class GurobiProblemGenerator:
         self.add_improving_constraints(model)
 
     def add_smolt_deployment_constraints(self, model: gp.Model) -> None:
+        """Adds the smolt deployment constraints to the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         max_w = self.environment.parameters.max_deploy_smolt
         min_w = self.environment.parameters.min_deploy_smolt
@@ -233,6 +299,11 @@ class GurobiProblemGenerator:
                 model.addConstr(deployed_smolt_expr <= max_w * delta, name = "max_smolt_dep_%s,%s"%(m.index, dep_p.index))
 
     def add_extraction_constraints(self, model: gp.Model) -> None:
+        """Adds the extraction constraints to the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         max_w = self.environment.parameters.max_extract_weight
         for t in self.environment.tanks:
@@ -251,6 +322,11 @@ class GurobiProblemGenerator:
                     model.addConstr(self.contains_salmon_variable(t, next_p) + epsilon <= 1, name = "empty_extract_tank_%s,%s"%(t.index, p.index))
 
     def add_salmon_transfer_constraints(self, model: gp.Model) -> None:
+        """Adds the salmon transfer constraints to the MIP problem, only used when transfer is allowed
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         max_w = self.environment.parameters.max_transfer_weight
         min_w = self.environment.parameters.min_transfer_weight
@@ -287,6 +363,11 @@ class GurobiProblemGenerator:
                     model.addConstr(transf_w_expr <= max_w_expr, name = "max_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
 
     def add_salmon_density_constraints(self, model: gp.Model) -> None:
+        """Adds the salmon density and tank activation constraints to the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         max_den = self.environment.parameters.max_tank_density
         for t in self.environment.tanks:
@@ -304,6 +385,11 @@ class GurobiProblemGenerator:
                 model.addConstr(weight_expr <= max_den * self.contains_salmon_variable(t, p), name = "max_density_%s,%s"%(t.index, p.index))
 
     def add_regulatory_constraints(self, model: gp.Model) -> None:
+        """Adds the regulatory constraints to the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         # Set limit on total biomass each period (5.12)
         max_mass = self.environment.parameters.max_total_biomass
@@ -325,6 +411,11 @@ class GurobiProblemGenerator:
             model.addConstr(extr_w_expr <= max_prod, name = "max_year_prod_%s"%y.year)
 
     def add_biomass_development_constraints(self, model: gp.Model) -> None:
+        """Adds the biomass development constraints to the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         loss = self.environment.parameters.monthly_loss
         for dep_p in self.environment.release_periods:
@@ -364,6 +455,11 @@ class GurobiProblemGenerator:
                     model.addConstr(self.population_weight_variable(dep_p, t, last_p) == self.extract_weight_variable(dep_p, t, last_p), name = "extract_last_period_%s,%s"%(dep_p.index, t.index))
 
     def add_improving_constraints(self, model: gp.Model) -> None:
+        """Adds valid inequalities to the MIP problem that can improve the linear relaxation in the model
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
 
         prev_p = self.environment.periods[0]
         for p in self.environment.periods[1:]:
@@ -414,22 +510,75 @@ class GurobiProblemGenerator:
                     model.addConstr(expr_lhs_1 + expr_lhs_2 <= self.contains_salmon_variable(t, p), name = "force_alpha_%s,%s,%s"%(t.index, dep_p.index, p.index))
 
     def extract_weight_variable(self, depl_period: Period, tank: Tank, period: Period) -> gp.Var:
+        """Returns the continous MIP variable for weight of extracted salmon
+
+        args:
+            - depl_period: 'Period' The period when the extracted salmon was deployed
+            - tank: 'Tank' The tank the salmon was extracted from
+            - period: 'Period' The period when the salmon was extracted
+        """
+
         return self.extract_weight_variables[(depl_period.index, tank.index, period.index)]
 
     def population_weight_variable(self, depl_period: Period, tank: Tank, period: Period) -> gp.Var:
+        """Returns the continous MIP variable for salmon weight in a tank
+
+        args:
+            - depl_period: 'Period' The period when the salmon was deployed
+            - tank: 'Tank' The tank
+            - period: 'Period' The period to get the salmon weight for
+        """
+
         return self.population_weight_variables[(depl_period.index, tank.index, period.index)]
     
     def transfer_weight_variable(self, depl_period: Period, from_tank: Tank, to_tank: Tank, period: Period) -> gp.Var:
+        """Returns the continous MIP variable for weight of transferred salmon
+
+        args:
+            - depl_period: 'Period' The period when the transferred salmon was deployed
+            - from_tank: 'Tank' The tank the salmon was transferred from
+            - to_tank: 'Tank' The tank the salmon was transferred to
+            - period: 'Period' The period when the salmon was transferred
+        """
+
         return self.transfer_weight_variables[(depl_period.index, from_tank.index, to_tank.index, period.index)]
 
     def contains_salmon_variable(self, tank: Tank, period: Period) -> gp.Var:
+        """Returns the binary MIP variable for whether a tanks holds salmon at a given period
+
+        args:
+            - tank: 'Tank' The tank
+            - period: 'Period' The period
+        """
+
         return self.contains_salmon_variables[(tank.index, period.index)]
 
     def smolt_deployed_variable(self, module: Module, depl_period: Period) -> gp.Var:
+        """Returns the binary MIP variable for whether salmon has been deployed in a module at a given period
+
+        args:
+            - module: 'Module' The module
+            - depl_period: 'Period' The deploy period
+        """
+
         return self.smolt_deployed_variables[(module.index, depl_period.index)]
 
     def salmon_extracted_variable(self, tank: Tank, period: Period) -> gp.Var:
+        """Returns the binary MIP variable for whether salmon was extracted from a tank at the end of a given period
+
+        args:
+            - tank: 'Tank' The tank
+            - period: 'Period' The period
+        """
+
         return self.salmon_extracted_variables[(tank.index, period.index)]
 
     def salmon_transferred_variable(self, tank: Tank, period: Period) -> gp.Var:
+        """Returns the binary MIP variable for whether salmon was transferred to a tank at a given period
+
+        args:
+            - tank: 'Tank' The tank
+            - period: 'Period' The period
+        """
+
         return self.salmon_transferred_variables[(tank.index, period.index)]
