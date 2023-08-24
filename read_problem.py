@@ -90,10 +90,20 @@ def read_modules(environment : Environment, modules_json) -> None:
 
     mod_type = modules_json["type"]
 
-    if mod_type == "FourTank":
+    if mod_type == "OneTank":
         modules = modules_json["modules"]
         tank_volume = modules_json["tank_volume"]
-        add_four_tank_modules(environment, modules, 1.0 / tank_volume)
+        add_one_tank_modules(environment, modules, 1.0 / tank_volume)
+
+    elif mod_type == "TwoTanks":
+        modules = modules_json["modules"]
+        tank_volume = modules_json["tank_volume"]
+        add_two_tanks_modules(environment, modules, 1.0 / tank_volume)
+
+    elif mod_type == "FourTanks":
+        modules = modules_json["modules"]
+        tank_volume = modules_json["tank_volume"]
+        add_four_tanks_modules(environment, modules, 1.0 / tank_volume)
 
     else:
         raise ValueError("Unknown module setup type: " + mod_type)
@@ -282,7 +292,45 @@ def read_csv_table(dir : str, local_file_path : str) -> list[list[float]]:
 
     return result
 
-def add_four_tank_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
+def add_one_tank_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
+    """Adds modules and tanks to the MIP model, where each module has one tank, all tanks have the same size,
+    and there is no possibility for salmon transfers between tanks
+
+    args:
+        - environment : 'Environment' The environment object the MIP problem is built from
+        - modules : 'int' The number of modules added
+        - inv_tank_volume : 'float' 1.0 divided by the tank volume (1/m3)
+    """
+
+    for mod_idx in range(modules):
+        module = Module(mod_idx)
+        environment.modules.append(module)
+        tank = Tank(mod_idx, inv_tank_volume)
+        module.tanks.append(tank)
+        environment.tanks.append(tank)
+
+def add_two_tanks_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
+    """Adds modules and tanks to the MIP model, where each module has two tanks, all tanks have the same size,
+    and salmon transfers between tanks are 0 -> 1
+
+    args:
+        - environment : 'Environment' The environment object the MIP problem is built from
+        - modules : 'int' The number of modules added
+        - inv_tank_volume : 'float' 1.0 divided by the tank volume (1/m3)
+    """
+
+    for mod_idx in range(modules):
+        module = Module(mod_idx)
+        environment.modules.append(module)
+
+        for tank_idx in range(2):
+            tank = Tank(2 * mod_idx + tank_idx, inv_tank_volume)
+            module.tanks.append(tank)
+            environment.tanks.append(tank)
+
+        module.connect_transfer_tanks(0, 1)
+
+def add_four_tanks_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
     """Adds modules and tanks to the MIP model, where each module has four tanks, all tanks have the same size,
     and salmon transfers between tanks are 0 -> 1 -> 3 and 0 -> 2
 

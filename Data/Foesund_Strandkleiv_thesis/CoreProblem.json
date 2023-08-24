@@ -16,7 +16,7 @@
         "harvest_yield" : 0.85
     },
     "modules" : {
-        "type" : "FourTank",
+        "type" : "FourTanks",
         "modules" : 7,
         "tank_volume" : 3500.0
     },
