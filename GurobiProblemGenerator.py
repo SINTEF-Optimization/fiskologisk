@@ -303,9 +303,9 @@ class GurobiProblemGenerator:
                 for t in m.tanks:
                     deployed_smolt_expr.addTerms(1.0, self.population_weight_variable(dep_p, t, dep_p))
                     if not first:
-                        model.addConstr(delta + self.contains_salmon_variable(t, prev_p) <= 1, name = "empty_deploy_tank_%s,%s"%(m.index, t.index))
+                        model.addConstr(delta + self.contains_salmon_variable(t, prev_p) <= 1, name = "empty_deploy_tank_%s,%s,%s"%(m.index, t.index, dep_p.index))
                     elif t.initial_weight > 0:
-                        model.addConstr(delta == 0, name = "empty_deploy_tank_%s,%s"%(m.index, t.index))
+                        model.addConstr(delta == 0, name = "empty_deploy_tank_%s,%s,%s"%(m.index, t.index, dep_p.index))
 
                 # Set weight range for deployed smolt (5.3)
                 model.addConstr(min_w * delta <= deployed_smolt_expr, name = "min_smolt_dep_%s,%s"%(m.index, dep_p.index))
@@ -490,7 +490,7 @@ class GurobiProblemGenerator:
                         expr.addTerms(1, self.salmon_transferred_variable(t, p))
                     expr.addTerms(1, self.contains_salmon_variable(t, prev_p))
                     expr.addTerms(-1, self.salmon_extracted_variable(t, prev_p))
-                    model.addConstr(expr >= self.contains_salmon_variable(t, prev_p), name = "no_transfer_deploy_%s,%s"%(p.index, t.index))
+                    model.addConstr(expr >= self.contains_salmon_variable(t, p), name = "no_transfer_deploy_%s,%s"%(p.index, t.index))
             prev_p = p
 
         for dep_p in self.environment.plan_release_periods:
@@ -522,7 +522,7 @@ class GurobiProblemGenerator:
                                 expr_lhs_2.addTerms(1, self.salmon_transferred_variable(t, pp))
                             if pp_idx != p_idx:
                                 expr_lhs_2.addTerms(-1, self.salmon_extracted_variable(t, pp))
-                    model.addConstr(expr_lhs_1 + expr_lhs_2 <= self.contains_salmon_variable(t, p), name = "force_alpha_%s,%s,%s"%(t.index, dep_p.index, p.index))
+                        model.addConstr(expr_lhs_1 + expr_lhs_2 <= self.contains_salmon_variable(t, p), name = "force_alpha_%s,%s,%s"%(t.index, dep_p.index, p.index))
 
     def extract_weight_variable(self, depl_period: Period, tank: Tank, period: Period) -> gp.Var:
         """Returns the continous MIP variable for weight of extracted salmon
