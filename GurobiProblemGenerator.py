@@ -493,6 +493,11 @@ class GurobiProblemGenerator:
                     model.addConstr(expr >= self.contains_salmon_variable(t, p), name = "no_transfer_deploy_%s,%s"%(p.index, t.index))
             prev_p = p
 
+        for t in self.environment.tanks:
+
+            # Can not extract from empty tanks last period (similar to 5.20/5.21 for a period after planning horizon)
+            model.addConstr(self.salmon_extracted_variable(t, prev_p) <= self.contains_salmon_variable(t, prev_p), name = "no_extract_from_empty_last_period_%s"%t.index)
+
         for dep_p in self.environment.plan_release_periods:
             first_extract_idx = dep_p.extract_periods[0].index
             up_to_extract = [p for p in dep_p.periods_after_deploy if p.index <= first_extract_idx ]
