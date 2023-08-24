@@ -100,13 +100,10 @@ class GurobiProblemGenerator:
         self.population_weight_variables = {}
         for dep_p in self.environment.release_periods:
             for p in dep_p.periods_after_deploy:
-                set_init = p == self.environment.periods[0] and p != dep_p
                 for t in self.environment.tanks:
                     key = (dep_p.index, t.index, p.index)
                     var = model.addVar(name = "x_%s,%s,%s"%key)
                     self.population_weight_variables[key] = var
-                    if set_init:
-                        var.Start = t.initial_weight if t.initial_weight > 0 and t.initial_deploy_period == dep_p.index else 0.0
 
         # Continous variable: Transferred salmon from deploy period from tank to tank in period
         self.transfer_weight_variables = {}
@@ -261,6 +258,7 @@ class GurobiProblemGenerator:
             - model: 'gp.Model' The MIP model to add the constraints into
         """
 
+        self.add_initial_value_constraints(model)
         self.add_smolt_deployment_constraints(model)
         self.add_extraction_constraints(model)
         if self.allow_transfer:
@@ -269,6 +267,20 @@ class GurobiProblemGenerator:
         self.add_regulatory_constraints(model)
         self.add_biomass_development_constraints(model)
         self.add_improving_constraints(model)
+
+    def add_initial_value_constraints(self, model: gp.Model) -> None:
+        """Adds the smolt deployment constraints to the MIP problem
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
+
+        first_p = self.environment.periods[0]
+        for dep_p in first_p.deploy_periods:
+            if dep_p != first_p:
+                for t in self.environment.tanks:
+                    init_w = t.initial_weight if t.initial_weight > 0 and t.initial_deploy_period == dep_p.index else 0.0
+                    model.addConstr(self.population_weight_variable(dep_p, t, first_p) == init_w, name = "initial_population_%s,%s"%(dep_p.index, t.index))
 
     def add_smolt_deployment_constraints(self, model: gp.Model) -> None:
         """Adds the smolt deployment constraints to the MIP problem
