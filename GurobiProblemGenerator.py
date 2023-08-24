@@ -144,10 +144,11 @@ class GurobiProblemGenerator:
         self.salmon_transferred_variables = {}
         if self.allow_transfer:
             for t in self.environment.tanks:
-                for p in self.environment.periods:
-                    key = (t.index, p.index)
-                    var = model.addVar(name = "sigma_%s,%s"%key, vtype = GRB.BINARY)
-                    self.salmon_transferred_variables[key] = var
+                if len(t.transferable_from) > 0:
+                    for p in self.environment.periods:
+                        key = (t.index, p.index)
+                        var = model.addVar(name = "sigma_%s,%s"%key, vtype = GRB.BINARY)
+                        self.salmon_transferred_variables[key] = var
 
     def add_objective(self, model: gp.Model) -> None:
         """Builds the objective function of the MIP problem
@@ -348,31 +349,32 @@ class GurobiProblemGenerator:
             last = p == self.environment.periods[-1]
             next_p = None if last else next(np for np in self.environment.periods if np.index == p.index + 1)
             for t in self.environment.tanks:
-                sigma = self.salmon_transferred_variable(t, p)
-                min_w_expr = gp.LinExpr(min_w, sigma)
-                max_w_expr = gp.LinExpr(max_w, sigma)
+                if len(t.transferable_from) > 0:
+                    sigma = self.salmon_transferred_variable(t, p)
+                    min_w_expr = gp.LinExpr(min_w, sigma)
+                    max_w_expr = gp.LinExpr(max_w, sigma)
 
-                # Only transfer to empty tanks (5.7)
-                if not first:
-                    model.addConstr(sigma + self.contains_salmon_variable(t, prev_p) <= 1, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
-                elif t.initial_weight > 0:
-                    model.addConstr(sigma == 0, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
+                    # Only transfer to empty tanks (5.7)
+                    if not first:
+                        model.addConstr(sigma + self.contains_salmon_variable(t, prev_p) <= 1, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
+                    elif t.initial_weight > 0:
+                        model.addConstr(sigma == 0, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
 
-                # Tanks can not receive and extract same period (5.8)
-                model.addConstr(sigma + self.salmon_extracted_variable(t, p) <= 1, name = "no_extract_if_transfer_%s,%s"%(t.index, p.index))
+                    # Tanks can not receive and extract same period (5.8)
+                    model.addConstr(sigma + self.salmon_extracted_variable(t, p) <= 1, name = "no_extract_if_transfer_%s,%s"%(t.index, p.index))
 
-                for from_t in t.transferable_from:
+                    for from_t in t.transferable_from:
 
-                    # Do not empty tank transferred from (5.9)
-                    if not last:
-                        model.addConstr(sigma - self.contains_salmon_variable(from_t, next_p) <= 0, name = "transfer_from_not_empty_%s,%s,%s"%(t.index, from_t.index, p.index))
+                        # Do not empty tank transferred from (5.9)
+                        if not last:
+                            model.addConstr(sigma - self.contains_salmon_variable(from_t, next_p) <= 0, name = "transfer_from_not_empty_%s,%s,%s"%(t.index, from_t.index, p.index))
 
-                    # Set weight range for transferred salmon (5.10)
-                    transf_w_expr = gp.LinExpr()
-                    for dep_p in p.deploy_periods_for_transfer:
-                        transf_w_expr.addTerms(1.0, self.transfer_weight_variable(dep_p, from_t, t, p))
-                    model.addConstr(min_w_expr <= transf_w_expr, name = "min_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
-                    model.addConstr(transf_w_expr <= max_w_expr, name = "max_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
+                        # Set weight range for transferred salmon (5.10)
+                        transf_w_expr = gp.LinExpr()
+                        for dep_p in p.deploy_periods_for_transfer:
+                            transf_w_expr.addTerms(1.0, self.transfer_weight_variable(dep_p, from_t, t, p))
+                        model.addConstr(min_w_expr <= transf_w_expr, name = "min_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
+                        model.addConstr(transf_w_expr <= max_w_expr, name = "max_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
 
     def add_salmon_density_constraints(self, model: gp.Model) -> None:
         """Adds the salmon density and tank activation constraints to the MIP problem
@@ -484,7 +486,7 @@ class GurobiProblemGenerator:
                     expr = gp.LinExpr()
                     if is_deploy:
                         expr.addTerms(1, self.smolt_deployed_variable(m, p))
-                    if self.allow_transfer:
+                    if self.allow_transfer and len(t.transferable_from) > 0:
                         expr.addTerms(1, self.salmon_transferred_variable(t, p))
                     expr.addTerms(1, self.contains_salmon_variable(t, prev_p))
                     expr.addTerms(-1, self.salmon_extracted_variable(t, prev_p))
@@ -516,7 +518,7 @@ class GurobiProblemGenerator:
                         expr_lhs_2 = gp.LinExpr()
                         for pp_idx in range(1, p_idx + 1):
                             pp = dep_p.periods_after_deploy[pp_idx]
-                            if self.allow_transfer:
+                            if self.allow_transfer and len(t.transferable_from) > 0:
                                 expr_lhs_2.addTerms(1, self.salmon_transferred_variable(t, pp))
                             if pp_idx != p_idx:
                                 expr_lhs_2.addTerms(-1, self.salmon_extracted_variable(t, pp))
