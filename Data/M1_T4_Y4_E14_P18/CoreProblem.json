@@ -17,7 +17,7 @@
     },
     "modules" : {
         "type" : "FourTanks",
-        "modules" : 7,
+        "modules" : 1,
         "tank_volume" : 3500.0
     },
     "weight_classes" : {

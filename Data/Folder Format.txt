@@ -1,0 +1,14 @@
+Folder name format:
+	M<m>_T<t>_Y<y>_E<e>_P<p>
+where
+	m = # modules
+	t = # tanks in each modules
+	y = # years in main planning horizon
+	e = # periods in extended planning horizon
+	p = # periods in preplanning horizon
+
+Input parameters under "periods" should hold
+
+	planning_periods = 12 * y + e
+	pre_planning_periods = p
+	latest_deploy = (number of months in planning horizon before latest deploy month) + p

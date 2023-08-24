@@ -17,7 +17,7 @@
     },
     "modules" : {
         "type" : "FourTanks",
-        "modules" : 7,
+        "modules" : 1,
         "tank_volume" : 3500.0
     },
     "weight_classes" : {
@@ -40,10 +40,10 @@
     },
     "periods" : {
         "first_planning_year" : 2023,
-        "planning_periods" : 62,
+        "planning_periods" : 50,
         "pre_planning_periods" : 18,
         "deploy_months" : [ 0, 1, 2, 6, 7, 8],
-        "latest_deploy" : 50
+        "latest_deploy" : 38
     },
     "post_deploy" : {
         "weight_variance_portion" : 0.15,
