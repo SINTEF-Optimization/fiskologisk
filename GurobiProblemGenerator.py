@@ -392,7 +392,8 @@ class GurobiProblemGenerator:
         """
 
         # Set limit on total biomass each period (5.12)
-        max_mass = self.environment.parameters.max_total_biomass
+        regulation_rescale = len(self.environment.tanks) / self.environment.parameters.tanks_in_regulations
+        max_mass = self.environment.parameters.max_total_biomass * regulation_rescale
         for p in self.environment.periods:
             weight_expr = gp.LinExpr()
             for dep_p in p.deploy_periods:
@@ -401,7 +402,7 @@ class GurobiProblemGenerator:
             model.addConstr(weight_expr <= max_mass, name = "max_biomass_%s"%p.index)
 
         # Set limit on yearly production (5.13)
-        max_prod = self.environment.parameters.max_yearly_production
+        max_prod = self.environment.parameters.max_yearly_production * regulation_rescale
         for y in self.environment.years:
             extr_w_expr = gp.LinExpr()
             for p in y.periods:

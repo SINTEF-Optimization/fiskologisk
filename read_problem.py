@@ -75,6 +75,7 @@ def read_parameters(env_params : Parameters, param_json) -> None:
     env_params.min_transfer_weight = param_json["min_transfer_weight"]
     env_params.max_tank_density = param_json["max_tank_density"]
     env_params.max_total_biomass = param_json["max_total_biomass"]
+    env_params.tanks_in_regulations = param_json["tanks_in_regulations"]
     env_params.max_yearly_production = param_json["max_yearly_production"]
     env_params.monthly_loss = param_json["monthly_loss"]
     env_params.harvest_yield = param_json["harvest_yield"]

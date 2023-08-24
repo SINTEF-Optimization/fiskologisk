@@ -11,6 +11,7 @@
         "max_tank_density" : 45.0,
         "max_total_biomass" : 3900000.0,
         "max_yearly_production" : 5500000.0,
+		"tanks_in_regulations": 28,
         "monthly_loss" : 0.0043,
         "harvest_yield" : 0.85
     },
