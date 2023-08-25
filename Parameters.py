@@ -31,10 +31,13 @@ class Parameters:
     """Max legal tank density (kg/m3)"""
 
     max_total_biomass : float
-    """Max legal total biomass (kg)"""
+    """Max legal total biomass for 'tanks_in_regulations' number of tanks (kg)"""
 
     max_yearly_production : float
-    """Max legal total production in a year (kg)"""
+    """Max legal total production in a year for 'tanks_in_regulations' number of tanks (kg)"""
+
+    tanks_in_regulations: float
+    """Number of tanks the maximum biomass and yearly production is given for. Similar limits in the problem should be rescaled by number of tanks"""
 
     monthly_loss : float
     """Monthly production loss as portion of biomass"""

@@ -7,7 +7,7 @@ from Module import Module
 from Tank import Tank
 from Year import Year
 from Period import Period
-from PeriodAfterDeploy import PeriodAfterDeploy
+from Period import PeriodAfterDeployData
 from WeightClass import WeightClass
 from weight_distribution import get_weight_distributions
 
@@ -75,6 +75,7 @@ def read_parameters(env_params : Parameters, param_json) -> None:
     env_params.min_transfer_weight = param_json["min_transfer_weight"]
     env_params.max_tank_density = param_json["max_tank_density"]
     env_params.max_total_biomass = param_json["max_total_biomass"]
+    env_params.tanks_in_regulations = param_json["tanks_in_regulations"]
     env_params.max_yearly_production = param_json["max_yearly_production"]
     env_params.monthly_loss = param_json["monthly_loss"]
     env_params.harvest_yield = param_json["harvest_yield"]
@@ -89,10 +90,20 @@ def read_modules(environment : Environment, modules_json) -> None:
 
     mod_type = modules_json["type"]
 
-    if mod_type == "FourTank":
+    if mod_type == "OneTank":
         modules = modules_json["modules"]
         tank_volume = modules_json["tank_volume"]
-        add_four_tank_modules(environment, modules, 1.0 / tank_volume)
+        add_one_tank_modules(environment, modules, 1.0 / tank_volume)
+
+    elif mod_type == "TwoTanks":
+        modules = modules_json["modules"]
+        tank_volume = modules_json["tank_volume"]
+        add_two_tanks_modules(environment, modules, 1.0 / tank_volume)
+
+    elif mod_type == "FourTanks":
+        modules = modules_json["modules"]
+        tank_volume = modules_json["tank_volume"]
+        add_four_tanks_modules(environment, modules, 1.0 / tank_volume)
 
     else:
         raise ValueError("Unknown module setup type: " + mod_type)
@@ -162,16 +173,19 @@ def read_periods(environment : Environment, periods_json) -> None:
         if is_planning or is_deploy:
             period = Period(month_idx, month_in_year, is_deploy, is_planning)
 
+            if is_deploy:
+                environment.release_periods.append(period)
+                if is_planning:
+                    environment.plan_release_periods.append(period)
+                else:
+                    environment.preplan_release_periods.append(period)
+
             if is_planning:
                 if month_in_year == 0:
                     year = Year(year_idx)
                     environment.years.append(year)
                 year.periods.append(period)
                 environment.periods.append(period)
-                if is_deploy:
-                    environment.release_periods.append(period)
-            else:
-                environment.preplan_release_periods.append(period)
 
         month_in_year += 1
         if month_in_year == 12:
@@ -213,12 +227,25 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
     weight_distributions = get_weight_distributions(environment.weight_classes, expected_weights, weight_variance_portion, max_harvest_weight)
 
     # Connect deploy periods with production periods afterwards
-    for deploy_period in environment.preplan_release_periods + environment.release_periods:
+    for deploy_period in environment.release_periods:
         deploy_month = deploy_period.month
         max_since_deploy = len(weight_distributions[deploy_month])
+
+        # First find index of last possible extraction period
+        last_extract_index = -1
         for period in environment.periods:
             since_deploy = period.index - deploy_period.index
             if since_deploy >= 0 and since_deploy < max_since_deploy:
+                expected_weight = expected_weights[deploy_month][since_deploy]
+
+                can_extract_post_smolt = expected_weight > min_post_smolt_weight and expected_weight < max_post_smolt_weight
+                can_harvest = expected_weight > min_harvest_weight and expected_weight < max_harvest_weight
+                if can_extract_post_smolt or can_harvest:
+                    last_extract_index = period.index
+
+        for period in environment.periods:
+            since_deploy = period.index - deploy_period.index
+            if since_deploy >= 0 and since_deploy < max_since_deploy and period.index <= last_extract_index:
 
                 expected_weight = expected_weights[deploy_month][since_deploy]
                 feed_cost = feed_costs[deploy_month][since_deploy]
@@ -226,13 +253,13 @@ def read_post_deploy_relations(environment : Environment, file_dir : str, post_d
                 growth_factor = expected_weights[deploy_month][since_deploy + 1] / expected_weight
                 transfer_growth_factor = 1.0 + 0.5 * (growth_factor - 1)
                 weight_distribution = weight_distributions[deploy_month][since_deploy]
-                period_after_deploy = PeriodAfterDeploy(expected_weight, feed_cost, oxygen_cost, growth_factor, transfer_growth_factor, weight_distribution)
+                period_after_deploy_data = PeriodAfterDeployData(period, expected_weight, feed_cost, oxygen_cost, growth_factor, transfer_growth_factor, weight_distribution)
 
                 can_extract_post_smolt = expected_weight > min_post_smolt_weight and expected_weight < max_post_smolt_weight
                 can_transfer = expected_weight > min_transfer_weight and expected_weight < max_transfer_weight
                 can_harvest = expected_weight > min_harvest_weight and expected_weight < max_harvest_weight
                 
-                deploy_period.add_after_deploy(period, period_after_deploy, can_harvest or can_extract_post_smolt)
+                deploy_period.add_after_deploy(period, period_after_deploy_data, can_harvest or can_extract_post_smolt)
                 if can_transfer:
                     deploy_period.add_transfer_period(period)
                 if can_extract_post_smolt:
@@ -265,7 +292,45 @@ def read_csv_table(dir : str, local_file_path : str) -> list[list[float]]:
 
     return result
 
-def add_four_tank_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
+def add_one_tank_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
+    """Adds modules and tanks to the MIP model, where each module has one tank, all tanks have the same size,
+    and there is no possibility for salmon transfers between tanks
+
+    args:
+        - environment : 'Environment' The environment object the MIP problem is built from
+        - modules : 'int' The number of modules added
+        - inv_tank_volume : 'float' 1.0 divided by the tank volume (1/m3)
+    """
+
+    for mod_idx in range(modules):
+        module = Module(mod_idx)
+        environment.modules.append(module)
+        tank = Tank(mod_idx, inv_tank_volume)
+        module.tanks.append(tank)
+        environment.tanks.append(tank)
+
+def add_two_tanks_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
+    """Adds modules and tanks to the MIP model, where each module has two tanks, all tanks have the same size,
+    and salmon transfers between tanks are 0 -> 1
+
+    args:
+        - environment : 'Environment' The environment object the MIP problem is built from
+        - modules : 'int' The number of modules added
+        - inv_tank_volume : 'float' 1.0 divided by the tank volume (1/m3)
+    """
+
+    for mod_idx in range(modules):
+        module = Module(mod_idx)
+        environment.modules.append(module)
+
+        for tank_idx in range(2):
+            tank = Tank(2 * mod_idx + tank_idx, inv_tank_volume)
+            module.tanks.append(tank)
+            environment.tanks.append(tank)
+
+        module.connect_transfer_tanks(0, 1)
+
+def add_four_tanks_modules(environment : Environment, modules : int, inv_tank_volume : float) -> None:
     """Adds modules and tanks to the MIP model, where each module has four tanks, all tanks have the same size,
     and salmon transfers between tanks are 0 -> 1 -> 3 and 0 -> 2
 
@@ -282,6 +347,7 @@ def add_four_tank_modules(environment : Environment, modules : int, inv_tank_vol
         for tank_idx in range(4):
             tank = Tank(4 * mod_idx + tank_idx, inv_tank_volume)
             module.tanks.append(tank)
+            environment.tanks.append(tank)
 
         module.connect_transfer_tanks(0, 1)
         module.connect_transfer_tanks(0, 2)
@@ -302,7 +368,6 @@ def read_initial_tank_setup(environment: Environment, tank_setups) -> None:
         deploy_period_index = tank_setup["deploy_period"]
         weight = tank_setup["weight"]
 
-        tank = next(t for t in all_tanks if t.index == tank_index)
-        deploy_period = next(p for p in environment.preplan_release_periods if p.index == deploy_period_index)
-        tank.initial_use = True
-        deploy_period.initial_weights[tank_index] = weight
+        tank = next(t for t in environment.tanks if t.index == tank_index)
+        tank.initial_weight = weight
+        tank.initial_deploy_period = deploy_period_index
