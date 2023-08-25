@@ -162,13 +162,14 @@ def read_periods(environment : Environment, periods_json) -> None:
     deploy_months = periods_json["deploy_months"]
 
     dy = (pre_planning_periods + 11) // 12
-    month_in_year = 12 * dy - pre_planning_periods
+    first_month_in_year = 12 * dy - pre_planning_periods
+    month_in_year = first_month_in_year
     year_idx = first_planning_year - dy
     year = None
 
-    for month_idx in range(pre_planning_periods + planning_periods):
-        is_planning = month_idx >= pre_planning_periods
-        is_deploy = month_in_year in deploy_months and month_idx <= latest_deploy + pre_planning_periods
+    for month_idx in range(first_month_in_year, 12 * dy + planning_periods):
+        is_planning = month_idx >= 12 * dy
+        is_deploy = month_in_year in deploy_months and month_idx <= latest_deploy + 12 * dy
 
         if is_planning or is_deploy:
             period = Period(month_idx, month_in_year, is_deploy, is_planning)
