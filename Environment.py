@@ -47,3 +47,13 @@ class Environment:
         self.preplan_release_periods = []
         self.years = []
         self.parameters = Parameters()
+
+    def add_initial_populations(self, initial_populations) -> None:
+        for init_pop in initial_populations:
+            tank_index = init_pop["tank"]
+            deploy_period_index = init_pop["deploy_period"]
+            weight = init_pop["weight"]
+
+            tank = next(t for t in self.tanks if t.index == tank_index)
+            tank.initial_weight = weight
+            tank.initial_deploy_period = deploy_period_index
