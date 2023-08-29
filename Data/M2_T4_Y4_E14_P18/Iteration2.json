@@ -1,0 +1,42 @@
+{
+    "core_setup": "CoreProblem.json",
+    "iteration_setup": {
+        "current_iteration": 2,
+        "max_iteration": 3,
+        "unextended_planning_years": 4,
+        "input_file": "Iteration%N.json",
+        "solution_output_file": "M2_T4_Y4_I%N.json"
+    },
+    "initial_populations": [
+        {
+            "tank": 0,
+            "deploy_period": 18,
+            "weight": 130578.03200186847
+        },
+        {
+            "tank": 3,
+            "deploy_period": 18,
+            "weight": 157500.0
+        },
+        {
+            "tank": 4,
+            "deploy_period": 20,
+            "weight": 36498.229723042605
+        },
+        {
+            "tank": 5,
+            "deploy_period": 20,
+            "weight": 34896.804254582334
+        },
+        {
+            "tank": 6,
+            "deploy_period": 20,
+            "weight": 94820.19570998158
+        },
+        {
+            "tank": 7,
+            "deploy_period": 20,
+            "weight": 94820.19570998158
+        }
+    ]
+}

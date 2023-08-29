@@ -719,7 +719,7 @@
                     "start_period": 42,
                     "start_cause": "deploy",
                     "end_period": 47,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 42,
@@ -785,7 +785,7 @@
                     "start_period": 42,
                     "start_cause": "deploy",
                     "end_period": 47,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 42,

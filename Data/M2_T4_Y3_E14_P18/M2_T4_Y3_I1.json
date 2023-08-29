@@ -1111,7 +1111,7 @@
                     "start_period": 54,
                     "start_cause": "deploy",
                     "end_period": 59,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 54,
@@ -1144,7 +1144,7 @@
                     "start_period": 54,
                     "start_cause": "deploy",
                     "end_period": 59,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 54,
@@ -1177,7 +1177,7 @@
                     "start_period": 54,
                     "start_cause": "deploy",
                     "end_period": 59,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 54,
@@ -1249,7 +1249,7 @@
                     "start_period": 54,
                     "start_cause": "deploy",
                     "end_period": 59,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 54,
@@ -1282,7 +1282,7 @@
                     "start_period": 54,
                     "start_cause": "deploy",
                     "end_period": 59,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 54,
@@ -1315,7 +1315,7 @@
                     "start_period": 54,
                     "start_cause": "deploy",
                     "end_period": 59,
-                    "end_cause": "planning_horizon_extension",
+                    "end_cause": "post_smolt",
                     "period_biomasses": [
                         {
                             "period": 54,
