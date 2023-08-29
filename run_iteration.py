@@ -16,7 +16,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_problem(file_path: str, allow_transfer: bool = True) -> None:
+def run_iteration(file_path: str, allow_transfer: bool = True) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)

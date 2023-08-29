@@ -4,7 +4,7 @@ from Period import Period
 from WeightClass import WeightClass
 from GurobiProblemGenerator import GurobiProblemGenerator
 from read_problem import read_problem
-from run_problem import run_problem
+from run_iteration import run_iteration
 
 def read_and_test_problem(file_path: str) -> None:
     environment = read_problem(file_path)
@@ -71,9 +71,5 @@ if __name__ == "__main__":
     #build_and_solve_problem("Data\M1_T2_Y2_E0_P0\Iteration_0.json")
     #build_and_solve_problem("Data\M1_T4_Y2_E0_P0\Iteration_0.json")
     #build_and_solve_problem("Data\M1_T4_Y3_E14_P18\Iteration_0.json")
-    run_problem("Data\M1_T4_Y2_E14_P18\Iteration3.json")
-    #run_problem("Data\M1_T4_Y3_E14_P18\Iteration1.json")
-    #run_problem("Data\M1_T4_Y4_E14_P18\Iteration0.json")
-    #run_problem("Data\M2_T4_Y2_E14_P18\Iteration1.json")
-    #run_problem("Data\M2_T4_Y3_E14_P18\Iteration1.json")
-    #run_problem("Data\M2_T4_Y3_E14_P18\Iteration1.json")
+    run_iteration("Data\M2_T4_Y4_E14_P18\Iteration0.json")
+    #run_iteration("Data\M2_T4_Y4_E14_P18\Iteration1_NoTr.json", False)
