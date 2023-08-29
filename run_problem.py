@@ -16,7 +16,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_problem(file_path: str) -> None:
+def run_problem(file_path: str, allow_transfer: bool = True) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -24,9 +24,9 @@ def run_problem(file_path: str) -> None:
     environment = read_core_problem(file_dir, iteration.core_setup_file)
     environment.add_initial_populations(iteration.initial_populations)
 
-    gpm = GurobiProblemGenerator(environment)
+    gpm = GurobiProblemGenerator(environment, allow_transfer = allow_transfer)
     model = gpm.build_model()
-    #model.write("test_thesis.lp")
+
     model.optimize()
 
     #print_variables(list(gpm.extract_weight_variables.values()), 0.5)
@@ -36,7 +36,7 @@ def run_problem(file_path: str) -> None:
     #print_variables(list(gpm.smolt_deployed_variables.values()), 0.5)
     #print_variables(list(gpm.salmon_extracted_variables.values()), 0.5)
     #print_variables(list(gpm.salmon_transferred_variables.values()), 0.5)
-        
+
     if iteration.current_iteration < iteration.max_iteration:
 
         next_initial_populations = []
