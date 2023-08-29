@@ -49,11 +49,16 @@ class Environment:
         self.parameters = Parameters()
 
     def add_initial_populations(self, initial_populations) -> None:
+
         for init_pop in initial_populations:
             tank_index = init_pop["tank"]
-            deploy_period_index = init_pop["deploy_period"]
-            weight = init_pop["weight"]
-
             tank = next(t for t in self.tanks if t.index == tank_index)
-            tank.initial_weight = weight
-            tank.initial_deploy_period = deploy_period_index
+
+            if "deploy_period" in init_pop:
+                tank.initial_deploy_period = init_pop["deploy_period"]
+
+            if "weight" in init_pop:
+                tank.initial_weight = init_pop["weight"]
+
+            if "in_use" in init_pop:
+                tank.initial_use = init_pop["in_use"]

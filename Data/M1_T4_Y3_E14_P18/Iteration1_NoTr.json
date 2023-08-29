@@ -9,9 +9,22 @@
     },
     "initial_populations": [
         {
+            "tank": 0,
+            "in_use": true
+        },
+        {
+            "tank": 1,
+            "in_use": true
+        },
+        {
+            "tank": 2,
+            "in_use": true
+        },
+        {
             "tank": 3,
             "deploy_period": 18,
-            "weight": 103804.47265178869
+            "weight": 103804.47265178869,
+            "in_use": true
         }
     ]
 }

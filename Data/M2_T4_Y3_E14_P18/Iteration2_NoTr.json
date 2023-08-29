@@ -9,34 +9,48 @@
     },
     "initial_populations": [
         {
+            "tank": 0,
+            "in_use": true
+        },
+        {
             "tank": 1,
             "deploy_period": 18,
-            "weight": 153928.57500000022
+            "weight": 153928.57500000022,
+            "in_use": true
+        },
+        {
+            "tank": 2,
+            "in_use": true
         },
         {
             "tank": 3,
             "deploy_period": 18,
-            "weight": 157500.0
+            "weight": 157500.0,
+            "in_use": true
         },
         {
             "tank": 4,
             "deploy_period": 20,
-            "weight": 18234.061694506498
+            "weight": 18234.061694506498,
+            "in_use": true
         },
         {
             "tank": 5,
             "deploy_period": 20,
-            "weight": 18234.0616945065
+            "weight": 18234.0616945065,
+            "in_use": true
         },
         {
             "tank": 6,
             "deploy_period": 20,
-            "weight": 18234.06162399538
+            "weight": 18234.06162399538,
+            "in_use": true
         },
         {
             "tank": 7,
             "deploy_period": 20,
-            "weight": 18234.061694506498
+            "weight": 18234.061694506498,
+            "in_use": true
         }
     ]
 }

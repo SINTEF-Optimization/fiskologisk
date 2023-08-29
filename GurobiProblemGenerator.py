@@ -304,7 +304,7 @@ class GurobiProblemGenerator:
                     deployed_smolt_expr.addTerms(1.0, self.population_weight_variable(dep_p, t, dep_p))
                     if not first:
                         model.addConstr(delta + self.contains_salmon_variable(t, prev_p) <= 1, name = "empty_deploy_tank_%s,%s,%s"%(m.index, t.index, dep_p.index))
-                    elif t.initial_weight > 0:
+                    elif t.initial_use:
                         model.addConstr(delta == 0, name = "empty_deploy_tank_%s,%s,%s"%(m.index, t.index, dep_p.index))
 
                 # Set weight range for deployed smolt (5.3)
@@ -357,7 +357,7 @@ class GurobiProblemGenerator:
                     # Only transfer to empty tanks (5.7)
                     if not first:
                         model.addConstr(sigma + self.contains_salmon_variable(t, prev_p) <= 1, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
-                    elif t.initial_weight > 0:
+                    elif t.initial_use:
                         model.addConstr(sigma == 0, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
 
                     # Tanks can not receive and extract same period (5.8)

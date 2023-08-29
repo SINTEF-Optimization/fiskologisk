@@ -11,26 +11,6 @@ from Period import PeriodAfterDeployData
 from WeightClass import WeightClass
 from weight_distribution import get_weight_distributions
 
-def read_problem(file_path : str) -> Environment:
-    """Reads the model used for building the MIP problem for landbased salmon farming
-
-    args:
-        - file_path : 'str' The path to the json-file setting up the model
-
-    returns:
-        An environment object with the model
-    """
-
-    file_dir = os.path.dirname(file_path)
-
-    with open(file_path, "r") as input_file:
-        data = json.load(input_file)
-        environment = read_core_problem(file_dir, data["core_setup"])
-        if "initial_tank_setup" in data:
-            read_initial_tank_setup(environment, data["initial_tank_setup"])
-
-    return environment
-
 def read_core_problem(dir : str, local_file_path : str) -> Environment:
     """Reads the model with empty initial conditions used for building the MIP problem for landbased salmon farming
 
@@ -353,22 +333,3 @@ def add_four_tanks_modules(environment : Environment, modules : int, inv_tank_vo
         module.connect_transfer_tanks(0, 1)
         module.connect_transfer_tanks(0, 2)
         module.connect_transfer_tanks(1, 3)
-
-def read_initial_tank_setup(environment: Environment, tank_setups) -> None:
-    """Reads the initial setup of the tanks starting with salmon in the planning horizon
-
-    args:
-        - environment : 'Environment' The environment object the MIP problem is built from
-        - tank_setups The deserialized json object with the initial tanks setup
-    """
-
-    all_tanks = [ t for module in environment.modules for t in module.tanks ]    
-
-    for tank_setup in tank_setups["initial_tank_setup"]:
-        tank_index = tank_setup["tank"]
-        deploy_period_index = tank_setup["deploy_period"]
-        weight = tank_setup["weight"]
-
-        tank = next(t for t in environment.tanks if t.index == tank_index)
-        tank.initial_weight = weight
-        tank.initial_deploy_period = deploy_period_index

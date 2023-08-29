@@ -38,14 +38,33 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
         first_planning_idx = environment.periods[0].index
         unextended_planning_periods = 12 * iteration.unextended_planning_years
         first_extended_idx = first_planning_idx + unextended_planning_periods
+
         if (environment.periods[-1].index >= first_extended_idx):
+
             first_extended_period = next(p for p in environment.periods if p.index == first_extended_idx)
-            for dep_p in first_extended_period.deploy_periods:
-                if dep_p != first_extended_period:
-                    for t in environment.tanks:
-                        var = gpm.population_weight_variable(dep_p, t, first_extended_period)
-                        if var.X > 0.5:
-                            next_initial_populations.append({ "tank": t.index, "deploy_period": dep_p.index - unextended_planning_periods, "weight": var.X })
+            last_horizon_period = next(p for p in environment.periods if p.index == first_extended_idx - 1)
+
+            for t in environment.tanks:
+                init_in_use = gpm.contains_salmon_variable(t, last_horizon_period).X > 0.5
+                init_dep_p = 0
+                init_weight = 0.0
+
+                for dep_p in first_extended_period.deploy_periods:
+                    if dep_p != first_extended_period:
+                        pop_var = gpm.population_weight_variable(dep_p, t, first_extended_period).X
+                        if pop_var > 0.5:
+                            init_dep_p = dep_p.index - unextended_planning_periods
+                            init_weight = pop_var
+
+                if init_in_use or init_weight > 0.0:
+                    next_init_pop = { "tank": t.index }
+                    if init_weight > 0.0:
+                        next_init_pop["deploy_period"] = init_dep_p
+                        next_init_pop["weight"] = init_weight
+                    if init_in_use:
+                        next_init_pop["in_use"] = True
+                    next_initial_populations.append(next_init_pop)
+
 
         next_iteration = iteration.current_iteration + 1
         iteration_setup = { "current_iteration": next_iteration, "max_iteration": iteration.max_iteration, "unextended_planning_years": iteration.unextended_planning_years, "input_file": iteration.input_file }
