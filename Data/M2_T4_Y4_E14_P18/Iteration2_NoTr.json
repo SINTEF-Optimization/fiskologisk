@@ -11,12 +11,22 @@
         {
             "tank": 0,
             "deploy_period": 18,
-            "weight": 157500.0
+            "weight": 157500.0,
+            "in_use": true
         },
         {
             "tank": 1,
             "deploy_period": 18,
-            "weight": 153928.57142857136
+            "weight": 153928.57142857136,
+            "in_use": true
+        },
+        {
+            "tank": 2,
+            "in_use": true
+        },
+        {
+            "tank": 3,
+            "in_use": true
         }
     ]
 }
