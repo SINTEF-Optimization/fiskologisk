@@ -1,0 +1,10 @@
+{
+    "core_setup": "CoreProblem.json",
+	"iteration_setup": {
+		"current_iteration": 0,
+		"max_iteration": 3,
+        "unextended_planning_years": 3,
+		"input_file": "Iteration%N_NoTr.json",
+		"solution_output_file": "M2_T4_Y3_I%N_NoTr.json"
+	}
+}
