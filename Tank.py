@@ -22,6 +22,9 @@ class Tank:
     initial_deploy_period : int
     """Index of preplanning deploy period for the salmon at the start of the planning horizon, only relevant if initial_weight is positive. Part of initial conditions to the MIP problem."""
 
+    initial_use: bool
+    """Whether the tank was used in the period prior to the planning horizon. Part of initial conditions to the MIP problem."""
+
     def __init__(self, index: int, inverse_volume : float) -> None:
         self.index = index
         self.transferable_to = []
@@ -29,3 +32,4 @@ class Tank:
         self.inverse_volume = inverse_volume
         self.initial_weight = 0.0
         self.initial_deploy_period = 0
+        self.initial_use = False
