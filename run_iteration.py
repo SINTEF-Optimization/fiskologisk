@@ -1,7 +1,10 @@
+import sys
+import getopt
 import gurobipy as gp
 import json
 import os
 from GurobiProblemGenerator import GurobiProblemGenerator
+from GurobiProblemGenerator import ObjectiveProfile
 from Environment import Environment
 from read_problem import read_core_problem
 
@@ -16,7 +19,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_iteration(file_path: str, allow_transfer: bool = True) -> None:
+def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, add_symmetry_breaks: bool) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -24,18 +27,10 @@ def run_iteration(file_path: str, allow_transfer: bool = True) -> None:
     environment = read_core_problem(file_dir, iteration.core_setup_file)
     environment.add_initial_populations(iteration.initial_populations)
 
-    gpm = GurobiProblemGenerator(environment, allow_transfer = allow_transfer)
+    gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer)
     model = gpm.build_model()
 
     model.optimize()
-
-    #print_variables(list(gpm.extract_weight_variables.values()), 0.5)
-    #print_variables(list(gpm.population_weight_variables.values()), 0.5)
-    #print_variables(list(gpm.transfer_weight_variables.values()), 0.5)
-    #print_variables(list(gpm.contains_salmon_variables.values()), 0.5)
-    #print_variables(list(gpm.smolt_deployed_variables.values()), 0.5)
-    #print_variables(list(gpm.salmon_extracted_variables.values()), 0.5)
-    #print_variables(list(gpm.salmon_transferred_variables.values()), 0.5)
 
     if iteration.current_iteration < iteration.max_iteration:
 
@@ -67,11 +62,6 @@ def run_iteration(file_path: str, allow_transfer: bool = True) -> None:
     if iteration.solution_output_file != None:
         solution_output_file_local = iteration.solution_output_file.replace("%N", str(iteration.current_iteration))
         write_solution_file(os.path.join(file_dir, solution_output_file_local), environment, iteration.unextended_planning_years, gpm)
-
-def print_variables(variables: list[gp.Var], min_val: float) -> None:
-    for v in variables:
-        if v.X > min_val:
-            print(v.VarName + " = " + str(v.X))
 
 def read_iteration_setup(file_path: str) -> Iteration:
 
@@ -201,6 +191,7 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
 
 
 def add_tank_cycle_start(prod_cyles_by_deploy, dep_p_idx: int, mod_idx: int, tank_idx: int, start_period_idx: int, start_cause: str, from_tank_idx: int = 0, transfer_weight: float = 0.0) -> None:
+
     if not dep_p_idx in prod_cyles_by_deploy:
         prod_cyles_by_deploy[dep_p_idx] = {}
     deploy_prod_cycles = prod_cyles_by_deploy[dep_p_idx]
@@ -219,6 +210,7 @@ def add_tank_cycle_start(prod_cyles_by_deploy, dep_p_idx: int, mod_idx: int, tan
     tank_cycle["period_biomasses"] = []
 
 def get_tank_cycle(prod_cyles_by_deploy, dep_p_idx: int, mod_idx: int, tank_idx: int, period_idx: int):
+
     tank_cycles = prod_cyles_by_deploy[dep_p_idx][mod_idx][tank_idx]
     start_p = None
     for sp in tank_cycles.keys():
@@ -227,4 +219,58 @@ def get_tank_cycle(prod_cyles_by_deploy, dep_p_idx: int, mod_idx: int, tank_idx:
     return tank_cycles[start_p]
 
 def add_tank_cycle_weight(tank_cycle, period_idx: int, weight: float) -> None:
+
     tank_cycle["period_biomasses"].append({"period": period_idx, "biomass": weight})
+
+def parse_objective(value: str, default: ObjectiveProfile) -> ObjectiveProfile:
+
+    value_up = value.upper()
+
+    if value_up == "PROFIT":
+        return ObjectiveProfile.PROFIT
+    elif value_up == "BIOMASS":
+        return ObjectiveProfile.BIOMASS
+    else:
+        return default
+
+def parse_bool(value: str, default: bool) -> bool:
+
+    value_up = value.upper()
+
+    if value_up in ("T", "TRUE", "1", "Y", "YES"):
+        return True
+    elif value_up in ("F", "FALSE", "0", "N", "NO"):
+        return False
+    else:
+        return default
+
+
+
+if __name__ == "__main__":
+    file_path = sys.argv[1]
+    objective = ObjectiveProfile.PROFIT
+    allow_transfer = True
+    add_symmetry_breaks = True
+
+    opt_arguments = sys.argv[2:]
+    options = "o:s:t:"
+    long_options = ["Objective=", "Symmetry_break=", "Transfer="]
+
+    try:
+        arguments, values = getopt.getopt(opt_arguments, options, long_options)
+
+        for argument, value in arguments:
+
+            if argument in ("-o", "--Objective"):
+                objective = parse_objective(value, ObjectiveProfile.PROFIT)
+            
+            elif argument in ("-s", "--Symmetry_break"):
+                add_symmetry_breaks = parse_bool(value, True)
+
+            elif argument in ("-t", "--Transfer"):
+                allow_transfer = parse_bool(value, True)
+
+        run_iteration(file_path, objective, allow_transfer, add_symmetry_breaks)
+
+    except getopt.error as err:
+        print(str(err))
