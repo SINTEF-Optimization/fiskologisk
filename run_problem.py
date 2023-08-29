@@ -140,29 +140,25 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
                 if var.X > 0.5:
                     add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, dep_p.index, "deploy")
 
-    # Start of tank cycles initiated by transfer
+    # Start of tank cycles initiated by transfer. Must also include those starting after normal planning horizon to recognize correct tank cycle when detecting those that completed after planning horizon end.
     if gpm.allow_transfer:
         for dep_p in environment.release_periods:
-            for p in dep_p.transfer_periods:
-                if p.index <= last_plan_period:
+            if dep_p.index <= last_plan_period:
+                for p in dep_p.transfer_periods:
                     for from_t in environment.tanks:
                         for to_t in from_t.transferable_to:
                             var = gpm.transfer_weight_variable(dep_p, from_t, to_t, p)
                             if var.X > 0.5:
                                 add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[to_t.index], to_t.index, p.index + 1, "transfer", from_t.index, var.X)
 
-    # Add tank populations
+    # Add tank populations. Must also include those after normal planning horizon to recognize correct tank cycle when detecting those that completed after planning horizon end.
     for dep_p in environment.release_periods:
-        for p in dep_p.periods_after_deploy:
-            if p.index <= last_plan_period:
+        if dep_p.index <= last_plan_period:
+            for p in dep_p.periods_after_deploy:
                 for t in environment.tanks:
                     var = gpm.population_weight_variable(dep_p, t, p)
                     if var.X > 0.5:
-                        #print("About to find tank_cycle %s,%s,%s,%s"%(dep_p.index, module_by_tank[t.index], t.index, p.index))
-                        #print("prod_cyles_by_deploy:")
-                        #print(prod_cyles_by_deploy)
                         tank_cycle = get_tank_cycle(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, p.index)
-                        #print("Did not fail!")
                         add_tank_cycle_weight(tank_cycle, p.index, var.X)
 
     # Add extractions
@@ -188,7 +184,14 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
             tank_cycles = []
             for tank_idx, tank_cycles_for_tank in sorted(cycle_tank_cycles.items()):
                 for start_p_idx, tank_cycle in sorted(tank_cycles_for_tank.items()):
-                    tank_cycles.append(tank_cycle)
+                    if start_p_idx <= last_plan_period:
+                        # In final output, only include periods inside orinary planning horizon.
+                        relevant_periods = []
+                        for biomass_data in tank_cycle["period_biomasses"]:
+                            if biomass_data["period"] <= last_plan_period:
+                                relevant_periods.append(biomass_data)
+                        tank_cycle["period_biomasses"] = relevant_periods
+                        tank_cycles.append(tank_cycle)
             production_cycles.append({"deploy_period": dep_p_idx, "module": mod_idx, "tank_cycles": tank_cycles})
 
     solution = {"modules": modules, "pre_planning_horizon": pre_planning_horizon, "planning_horizon": planning_horizon, "production_cycles": production_cycles}
