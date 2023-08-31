@@ -44,3 +44,6 @@ class Parameters:
 
     harvest_yield : float
     """Harvest yield as portion of harvested salmon"""
+
+    modules_type : str
+    """Type of tank setujp in the modules, as specified in the input file"""

@@ -27,7 +27,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     environment = read_core_problem(file_dir, iteration.core_setup_file)
     environment.add_initial_populations(iteration.initial_populations)
 
-    gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer)
+    gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks)
     model = gpm.build_model()
 
     model.optimize()
@@ -269,7 +269,7 @@ if __name__ == "__main__":
     file_path = sys.argv[1]
     objective = ObjectiveProfile.PROFIT
     allow_transfer = True
-    add_symmetry_breaks = True
+    add_symmetry_breaks = False
 
     opt_arguments = sys.argv[2:]
     options = "o:s:t:"

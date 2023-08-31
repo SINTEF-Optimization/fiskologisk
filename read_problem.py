@@ -69,6 +69,7 @@ def read_modules(environment : Environment, modules_json) -> None:
     """
 
     mod_type = modules_json["type"]
+    environment.parameters.modules_type = mod_type
 
     if mod_type == "OneTank":
         modules = modules_json["modules"]

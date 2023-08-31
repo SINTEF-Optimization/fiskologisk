@@ -33,6 +33,9 @@ class GurobiProblemGenerator:
     allow_transfer: bool
     """Whether transfer between tanks in a module is allowed. Default is True"""
 
+    add_symmetry_breaks: bool
+    """Whether extra constraints for breaking symmetries should be added. Default is False"""
+
     extract_weight_variables: dict[(int, int, int), gp.Var]
     """The continous MIP variables for weight of salmon extracted from the tanks for post-smolt or harvesting. Key is deploy period, tank and extract period"""
 
@@ -54,10 +57,11 @@ class GurobiProblemGenerator:
     salmon_transferred_variables: dict[(int, int), gp.Var]
     """The binary MIP variables for whether salmon was transferred to a tank at a given period. Key is tank transferred to and period"""
 
-    def __init__(self, environment: Environment, objective_profile: ObjectiveProfile = ObjectiveProfile.PROFIT, allow_transfer: bool = True) -> None:
+    def __init__(self, environment: Environment, objective_profile: ObjectiveProfile = ObjectiveProfile.PROFIT, allow_transfer: bool = True, add_symmetry_breaks: bool = False) -> None:
         self.environment = environment
         self.objective_profile = objective_profile
         self.allow_transfer = allow_transfer
+        self.add_symmetry_breaks = add_symmetry_breaks
 
         self.extract_weight_variables = {}
         self.population_weight_variables = {}
@@ -268,6 +272,8 @@ class GurobiProblemGenerator:
         self.add_regulatory_constraints(model)
         self.add_biomass_development_constraints(model)
         self.add_improving_constraints(model)
+        if self.add_symmetry_breaks:
+            self.add_symmetry_break_constraints(model)
 
     def add_initial_value_constraints(self, model: gp.Model) -> None:
         """Adds the smolt deployment constraints to the MIP problem
@@ -528,6 +534,24 @@ class GurobiProblemGenerator:
                             if pp_idx != p_idx:
                                 expr_lhs_2.addTerms(-1, self.salmon_extracted_variable(t, pp))
                         model.addConstr(expr_lhs_1 + expr_lhs_2 <= self.contains_salmon_variable(t, p), name = "force_alpha_%s,%s,%s"%(t.index, dep_p.index, p.index))
+
+    def add_symmetry_break_constraints(self, model: gp.Model) -> None:
+        """Adds extra constraints for breaking symmetries
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
+
+        mod_type = self.environment.parameters.modules_type
+
+        if mod_type == "FourTanks":
+            print("Adding force deploy constraints")
+            for dep_p in self.environment.plan_release_periods:
+                for m in self.environment.modules:
+                    delta = self.smolt_deployed_variable(m, dep_p)
+                    nmb_tanks = 4 if self.allow_transfer else 3
+                    for t in m.tanks[:nmb_tanks]:
+                        model.addConstr(delta <= self.contains_salmon_variable(t, dep_p), name = "force_deploy_tank_%s,%s"%(t, dep_p))
 
     def extract_weight_variable(self, depl_period: Period, tank: Tank, period: Period) -> gp.Var:
         """Returns the continous MIP variable for weight of extracted salmon
