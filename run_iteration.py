@@ -117,7 +117,8 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
 
     first_plan_year = environment.years[0].year
     first_plan_period = environment.periods[0].index
-    last_plan_period = first_plan_period + 12 * planning_years - 1
+    last_plan_period = environment.periods[-1].index
+    last_horizon_period = first_plan_period + 12 * planning_years - 1
     first_preplan_year = first_plan_year - first_plan_period // 12
     first_preplan_period = 0
     preplan_deploy_periods = []
@@ -125,10 +126,9 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
         preplan_deploy_periods.append(p.index)
     plan_deploy_periods = []
     for p in environment.plan_release_periods:
-        if p.index <= last_plan_period:
-            plan_deploy_periods.append(p.index)
-    pre_planning_horizon = {"years": first_plan_year - first_preplan_year, "first_year": first_preplan_year, "first_period": first_preplan_period, "deploy_periods": preplan_deploy_periods}
-    planning_horizon = {"years": planning_years, "first_year": first_plan_year, "first_period": first_plan_period, "deploy_periods": plan_deploy_periods}
+        plan_deploy_periods.append(p.index)
+    pre_planning_horizon = {"first_year": first_preplan_year, "first_period": first_preplan_period, "last_period": first_plan_period - 1, "deploy_periods": preplan_deploy_periods}
+    planning_horizon = {"first_year": first_plan_year, "first_period": first_plan_period, "last_ordinary_horizon_period": last_horizon_period, "last_period": last_plan_period, "deploy_periods": plan_deploy_periods}
 
     module_by_tank = {}
     for m in environment.modules:
@@ -143,64 +143,50 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
 
     # Start of tank cycles initiated by deploy
     for dep_p in environment.plan_release_periods:
-        if dep_p.index <= last_plan_period and len(dep_p.deploy_periods) > 0 and dep_p.periods_after_deploy[0] == dep_p:
+        if len(dep_p.periods_after_deploy) > 0 and dep_p.periods_after_deploy[0] == dep_p:
             for t in environment.tanks:
                 var = gpm.population_weight_variable(dep_p, t, dep_p)
                 if var.X > 0.5:
                     add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, dep_p.index, "deploy")
 
-    # Start of tank cycles initiated by transfer. Must also include those starting after normal planning horizon to recognize correct tank cycle when detecting those that completed after planning horizon end.
+    # Start of tank cycles initiated by transfer
     if gpm.allow_transfer:
         for dep_p in environment.release_periods:
-            if dep_p.index <= last_plan_period:
-                for p in dep_p.transfer_periods:
-                    for from_t in environment.tanks:
-                        for to_t in from_t.transferable_to:
-                            var = gpm.transfer_weight_variable(dep_p, from_t, to_t, p)
-                            if var.X > 0.5:
-                                add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[to_t.index], to_t.index, p.index + 1, "transfer", from_t.index, var.X)
+            for p in dep_p.transfer_periods:
+                for from_t in environment.tanks:
+                    for to_t in from_t.transferable_to:
+                        var = gpm.transfer_weight_variable(dep_p, from_t, to_t, p)
+                        if var.X > 0.5:
+                            add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[to_t.index], to_t.index, p.index + 1, "transfer", from_t.index, var.X)
 
-    # Add tank populations. Must also include those after normal planning horizon to recognize correct tank cycle when detecting those that completed after planning horizon end.
+    # Add tank populations
     for dep_p in environment.release_periods:
-        if dep_p.index <= last_plan_period:
-            for p in dep_p.periods_after_deploy:
-                for t in environment.tanks:
-                    var = gpm.population_weight_variable(dep_p, t, p)
-                    if var.X > 0.5:
-                        tank_cycle = get_tank_cycle(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, p.index)
-                        add_tank_cycle_weight(tank_cycle, p.index, var.X)
+        for p in dep_p.periods_after_deploy:
+            for t in environment.tanks:
+                var = gpm.population_weight_variable(dep_p, t, p)
+                if var.X > 0.5:
+                    tank_cycle = get_tank_cycle(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, p.index)
+                    add_tank_cycle_weight(tank_cycle, p.index, var.X)
 
     # Add extractions
     for dep_p in environment.release_periods:
-        if dep_p.index <= last_plan_period:
-            for extr_idx in range(2):
-                extract_periods = dep_p.postsmolt_extract_periods if extr_idx == 0 else dep_p.harvest_periods
-                for p in extract_periods:
-                    for t in environment.tanks:
-                        var = gpm.extract_weight_variable(dep_p, t, p)
-                        if var.X > 0.5:
-                            tank_cycle = get_tank_cycle(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, p.index)
-                            if p.index <= last_plan_period:
-                                tank_cycle["end_period"] = p.index
-                                tank_cycle["end_cause"] = "post_smolt" if extr_idx == 0 else "harvest"
-                            else:
-                                tank_cycle["end_period"] = last_plan_period
-                                tank_cycle["end_cause"] = "planning_horizon_extension"
+        for extr_idx in range(2):
+            extract_periods = dep_p.postsmolt_extract_periods if extr_idx == 0 else dep_p.harvest_periods
+            for p in extract_periods:
+                for t in environment.tanks:
+                    var = gpm.extract_weight_variable(dep_p, t, p)
+                    if var.X > 0.5:
+                        tank_cycle = get_tank_cycle(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, p.index)
+                        tank_cycle["end_period"] = p.index
+                        tank_cycle["end_cause"] = "post_smolt" if extr_idx == 0 else "harvest"
 
     production_cycles = []
     for dep_p_idx, mod_deploy_cycles in sorted(prod_cyles_by_deploy.items()):
         for mod_idx, cycle_tank_cycles in sorted(mod_deploy_cycles.items()):
             tank_cycles = []
-            for tank_idx, tank_cycles_for_tank in sorted(cycle_tank_cycles.items()):
-                for start_p_idx, tank_cycle in sorted(tank_cycles_for_tank.items()):
-                    if start_p_idx <= last_plan_period:
-                        # In final output, only include periods inside orinary planning horizon.
-                        relevant_periods = []
-                        for biomass_data in tank_cycle["period_biomasses"]:
-                            if biomass_data["period"] <= last_plan_period:
-                                relevant_periods.append(biomass_data)
-                        tank_cycle["period_biomasses"] = relevant_periods
-                        tank_cycles.append(tank_cycle)
+            for _, tank_cycles_for_tank in sorted(cycle_tank_cycles.items()):
+                for _, tank_cycle in sorted(tank_cycles_for_tank.items()):
+                    tank_cycles.append(tank_cycle)
             production_cycles.append({"deploy_period": dep_p_idx, "module": mod_idx, "tank_cycles": tank_cycles})
 
     solution = {"modules": modules, "pre_planning_horizon": pre_planning_horizon, "planning_horizon": planning_horizon, "production_cycles": production_cycles}
