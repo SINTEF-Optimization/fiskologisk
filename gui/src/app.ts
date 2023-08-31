@@ -1,122 +1,147 @@
 import * as d3 from "d3";
-import { example1 } from "./example";
-import { SalmonPlan, TankPeriod, TankRef } from "./model";
+import { EndCause, SalmonPlanSolution, StartCause } from "./model";
 
-// set the dimensions and margins of the graph
-const margin = { top: 10, right: 30, bottom: 30, left: 60 },
-  width = 800 - margin.left - margin.right,
-  height = 400 - margin.top - margin.bottom;
+(async () => {
 
-// append the svg object to the body of the page
-const svg = d3.select("body")
-  .append("svg")
-  .attr("width", width + margin.left + margin.right)
-  .attr("height", height + margin.top + margin.bottom)
-  .append("g")
-  .attr("transform",
-    "translate(" + margin.left + "," + margin.top + ")");
+  const problem = await fetch("instances/M2_T4_Y4_E14_P18/CoreProblem.json").then(res => res.json());
+  const solution = await fetch("instances/M2_T4_Y4_E14_P18/M2_T4_Y4_I1.json").then(res => res.json()) as SalmonPlanSolution;
 
-const data = example1;
+  console.log(problem);
+  console.log(solution);
 
-console.log(data);
 
-const timeDomain = d3.extent(data.periods.flatMap(p => [p.start_date, p.end_date])) as [Date, Date]
+  // set the dimensions and margins of the graph
+  const margin = { top: 10, right: 30, bottom: 30, left: 60 },
+    width = 1200 - margin.left - margin.right,
+    height = 600 - margin.top - margin.bottom;
 
-const xScale = d3.scaleTime()
-  .domain(timeDomain)
-  .nice()
-  .range([0, width]);
+  // append the svg object to the body of the page
+  const svg = d3.select("body")
+    .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform",
+      "translate(" + margin.left + "," + margin.top + ")");
 
-svg.append("g").attr("transform", "translate(0," + height + ")").call(d3.axisBottom(xScale));
+  // const timeDomain = d3.extent(data.periods.flatMap(p => [p.start_date, p.end_date])) as [Date, Date]
 
-const tankRefToName = ({ module_idx, tank_idx }) => `m${module_idx}-tank${tank_idx}`;
+  // const xScale = d3.scaleTime()
+  //   .domain(timeDomain)
+  //   .nice()
+  //   .range([0, width]);
 
-enum TankPeriodType {
-  Empty,
-  Deploy,
-  Growing,
-  PostSmolt,
-  Harvest,
-  TransferOut,
-  TransferIn,
-}
+  const xScale = d3.scaleLinear()
+    .domain([solution.planning_horizon.first_period - 1, solution.planning_horizon.first_period + solution.planning_horizon.years * 12 + 1])
+    .range([0, width]);
 
-const isZero = (x: number) => Math.abs(x) <= 1e-5;
+  svg.append("g").attr("transform", "translate(0," + height + ")").call(d3.axisBottom(xScale));
 
-const tankPeriodToType = (data: SalmonPlan, tankperiod: TankPeriod) => {
-  if (isZero(tankperiod.salmon_weight)) {
-    return TankPeriodType.Empty;
-  } else if (!isZero(tankperiod.salmon_deployed)) {
-    return TankPeriodType.Deploy;
-  } else if (!isZero(tankperiod.salmon_extracted)) {
-    if (tankperiod.salmon_classes.every(c => data.weight_classes[c.class].individual_weight_ub <= 2.0)) {
-      return TankPeriodType.PostSmolt;
+  const tankRefToName = ({ module_idx, tank_idx }) => `m${module_idx}-tank${tank_idx}`;
+
+  enum Symbol {
+    Empty,
+    Deploy,
+    Growing,
+    PostSmolt,
+    Harvest,
+    TransferOut,
+    TransferIn,
+    BeforePlanningHorizon,
+    AfterPlanningHorizon,
+  }
+
+  const yDomain = solution.modules.flatMap((m) =>
+    m.tank_indices.map((t) =>
+      tankRefToName({ module_idx: m.module_index, tank_idx: t })));
+
+  const yScale = d3.scalePoint(
+    yDomain, [margin.top, height - margin.bottom]);
+
+  svg.append("g").attr("transform", "translate(-10,0)").call(d3.axisLeft(yScale));
+
+  // TODO background color on deploy periods.
+
+  const symbolsMap: Map<string, { x: number, y: string, symbol: Symbol }> = new Map();
+  const setSymbol = (x: number, y: string, symbol: Symbol) => symbolsMap.set(`${x},${y}`, { x, y, symbol });
+  const maybeSetSymbol = (x: number, y: string, symbol: Symbol) => {
+    if (!symbolsMap.has(`${x},${y}`)) setSymbol(x, y, symbol);
+
+  };
+
+  for (const cycle of solution.production_cycles) {
+    for (const tank_cycle of cycle.tank_cycles) {
+      const this_tank = tankRefToName({ module_idx: cycle.module, tank_idx: tank_cycle.tank });
+
+      // Add start cause symbol.
+      if (tank_cycle.start_cause == StartCause.Transfer) {
+        const transfer = tank_cycle.transfer!;
+        const from_tank = tankRefToName({ module_idx: cycle.module, tank_idx: transfer.from_tank });
+        setSymbol(transfer.period, from_tank, Symbol.TransferOut);
+        setSymbol(transfer.period, this_tank, Symbol.TransferIn);
+      } else if (tank_cycle.start_cause == StartCause.PrePlanningDeploy) {
+        setSymbol(tank_cycle.start_period - 1, this_tank, Symbol.BeforePlanningHorizon);
+      } else if (tank_cycle.start_cause == StartCause.Deploy) {
+        setSymbol(tank_cycle.start_period, this_tank, Symbol.Deploy);
+      }
+
+      // Add end cause symbol
+      if (tank_cycle.end_cause == EndCause.Harvest) {
+        setSymbol(tank_cycle.end_period, this_tank, Symbol.Harvest);
+      } else if (tank_cycle.end_cause == EndCause.PostSmolt) {
+        setSymbol(tank_cycle.end_period, this_tank, Symbol.PostSmolt);
+      } else if (tank_cycle.end_cause == EndCause.PlanningHorizonExtension) {
+        setSymbol(tank_cycle.end_period + 1, this_tank, Symbol.AfterPlanningHorizon);
+      }
+
+      // Add active/growing symbols to all active periods that have no other symbol
+      for (const period of tank_cycle.period_biomasses) {
+        maybeSetSymbol(period.period,this_tank, Symbol.Growing);
+      }
+    }
+  }
+
+  const dots = Array.from(symbolsMap.values());
+
+  const shape = (pt: Symbol) => {
+
+    if (pt == Symbol.Deploy) {
+      return { shape: d3.symbol().size(80).type(d3.symbolCross)(), color: "green" }
+    } else if (pt == Symbol.Growing) {
+      return { shape: d3.symbol().size(20).type(d3.symbolCircle)(), color: "black" }
+    } else if (pt == Symbol.Harvest) {
+      return { shape: d3.symbol().size(80).type(d3.symbolCircle)(), color: "red" }
+    } else if (pt == Symbol.PostSmolt) {
+      return { shape: d3.symbol().size(80).type(d3.symbolCircle)(), color: "blue" }
+    } else if (pt == Symbol.TransferOut) {
+      return { shape: d3.symbol().size(80).type(d3.symbolTriangle)(), color: "darkred", transform: "rotate(180)" }
+    } else if (pt == Symbol.TransferIn) {
+      return { shape: d3.symbol().size(80).type(d3.symbolTriangle)(), color: "black", transform: "rotate(0)" }
+    } else if (pt == Symbol.BeforePlanningHorizon) {
+      return { shape: d3.symbol().size(80).type(d3.symbolTriangle)(), color: "gray", transform: "rotate(90)" }
+    } else if (pt == Symbol.AfterPlanningHorizon) {
+      return { shape: d3.symbol().size(80).type(d3.symbolTriangle)(), color: "gray", transform: "rotate(90)" }
+    } else if (pt == Symbol.Empty) {
+      return { shape: "", color: "" };
     } else {
-      return TankPeriodType.Harvest;
+      throw "unknown symbol type";
     }
-  } else if (!isZero(tankperiod.salmon_transfer_out)) {
-    return TankPeriodType.TransferOut;
-  } else if (tankperiod.salmon_transferred_to_this_tank.find(t => !isZero(t.weight))) {
-    return TankPeriodType.TransferIn;
-  } else {
-    return TankPeriodType.Growing;
+    // const s =  d3.symbol().type(d3.symbolAsterisk)();
+    // return s;
   }
-};
 
-const yDomain = data.modules.flatMap((m, module_idx) =>
-  m.tanks.map((_t, tank_idx) =>
-    tankRefToName({ module_idx, tank_idx })));
+  const symbols = svg
+    .append("g")
+    .attr("stroke-width", 1)
+    .selectAll("path")
+    .data(dots)
+    .join("path")
+    .attr(
+      "transform",
+      d => `translate(${xScale(d.x)}, ${yScale(d.y)}) ` + (shape(d.symbol).transform ?? "")
+    )
+    .attr("fill", d => shape(d.symbol).color)
+    .attr("stroke", d => shape(d.symbol).color)
+    .attr("d", d => shape(d.symbol).shape);
 
-
-const yScale = d3.scalePoint(
-  yDomain, [margin.top, height - margin.bottom]);
-
-svg.append("g").attr("transform", "translate(-10,0)").call(d3.axisLeft(yScale));
-
-const dots: any[] = [];
-for (const [module_idx, module] of data.modules.entries()) {
-  for (const [tank_idx, tank] of module.tanks.entries()) {
-    for (const tankperiod of tank.periods) {
-      dots.push({
-        x: data.periods[tankperiod.period].start_date,
-        y: tankRefToName({ module_idx, tank_idx }),
-        periodType: tankPeriodToType(data, tankperiod),
-      });
-    }
-  }
-}
-
-const shape = (pt: TankPeriodType) => {
-
-  if (pt == TankPeriodType.Deploy) {
-    return { shape: d3.symbol().size(80).type(d3.symbolCross)(), color: "green" }
-  } else if (pt == TankPeriodType.Growing) {
-    return { shape: d3.symbol().size(20).type(d3.symbolCircle)(), color: "black" }
-  } else if (pt == TankPeriodType.Harvest) {
-    return { shape: d3.symbol().size(80).type(d3.symbolCircle)(), color: "red" }
-  } else if (pt == TankPeriodType.PostSmolt) {
-    return { shape: d3.symbol().size(80).type(d3.symbolCircle)(), color: "blue" }
-  } else if (pt == TankPeriodType.TransferOut) {
-    return { shape: d3.symbol().size(80).type(d3.symbolTriangle)(), color: "darkred" }
-  } else if (pt == TankPeriodType.TransferIn) {
-    return { shape: d3.symbol().size(80).type(d3.symbolTriangle)(), color: "black", transform: "rotate(180)" }
-  } else {
-    return { shape: "", color: "" };
-  }
-  // const s =  d3.symbol().type(d3.symbolAsterisk)();
-  // return s;
-}
-
-const symbols = svg
-  .append("g")
-  .attr("stroke-width", 1)
-  .selectAll("path")
-  .data(dots)
-  .join("path")
-  .attr(
-    "transform",
-    d => `translate(${xScale(d.x)}, ${yScale(d.y)}) ` + (shape(d.periodType).transform ?? "")
-  )
-  .attr("fill", d => shape(d.periodType).color)
-  .attr("stroke", d => shape(d.periodType).color)
-  .attr("d", d => shape(d.periodType).shape);
+})();
