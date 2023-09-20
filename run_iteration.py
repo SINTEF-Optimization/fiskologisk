@@ -19,7 +19,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, add_symmetry_breaks: bool) -> None:
+def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, add_symmetry_breaks: bool, max_single_modules: int) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -27,7 +27,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     environment = read_core_problem(file_dir, iteration.core_setup_file)
     environment.add_initial_populations(iteration.initial_populations)
 
-    gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks)
+    gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
     model = gpm.build_model()
 
     model.optimize()
@@ -249,17 +249,24 @@ def parse_bool(value: str, default: bool) -> bool:
     else:
         return default
 
+def parse_int(value: str, default: int) -> int:
 
+    try:
+        result = int(value)
+    except ValueError:
+        result = default
+    return result
 
 if __name__ == "__main__":
     file_path = sys.argv[1]
     objective = ObjectiveProfile.PROFIT
     allow_transfer = True
     add_symmetry_breaks = False
+    max_single_modules = 0
 
     opt_arguments = sys.argv[2:]
-    options = "o:s:t:"
-    long_options = ["Objective=", "Symmetry_break=", "Transfer="]
+    options = "m:o:s:t:"
+    long_options = ["Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules="]
 
     try:
         arguments, values = getopt.getopt(opt_arguments, options, long_options)
@@ -275,7 +282,10 @@ if __name__ == "__main__":
             elif argument in ("-t", "--Transfer"):
                 allow_transfer = parse_bool(value, True)
 
-        run_iteration(file_path, objective, allow_transfer, add_symmetry_breaks)
+            elif argument in ("-m" "--Max_single_modules"):
+                max_single_modules = parse_int(value, 0)
+
+        run_iteration(file_path, objective, allow_transfer, add_symmetry_breaks, max_single_modules)
 
     except getopt.error as err:
         print(str(err))
