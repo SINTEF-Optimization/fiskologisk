@@ -92,6 +92,19 @@ class GurobiProblemGenerator:
         self.add_constraints(model)
         return model
 
+    def add_fixed_values(self, model: gp.Model, fixed_values_json):
+        """Reads information on the fixed values to be set for some of the variables in the MIP problem for landbased salmon farming
+
+        args:
+            - fixed_values_json The deserialized json object with the setup fixed values
+        """
+
+        if "deploy_periods" in fixed_values_json:
+            for depl_p in fixed_values_json["deploy_periods"]:
+                module_idx = depl_p["module"]
+                for dep_p in depl_p["start_periods"]:
+                    self.add_fixed_deploy_period(model, module_idx, dep_p)
+
     def add_variables(self, model: gp.Model) -> None:
         """Generates all variables for the MIP problem
         
@@ -625,6 +638,10 @@ class GurobiProblemGenerator:
             for m in self.environment.modules:
                 sum_mod.addTerms(1.0, self.module_active_variable(m, dep_p))
             model.addConstr(sum_mod <= self.max_single_modules, name = "maximum_modules_%s"%dep_p.index)
+
+    def add_fixed_deploy_period(self, model: gp.Model, m_idx: int, dep_p_idx: int) -> None:
+
+        model.addConstr(self.smolt_deployed_variables[(m_idx, dep_p_idx)] == 1.0, name = "fix_deploy_period_%s,%s"%(m_idx, dep_p_idx))
 
     def extract_weight_variable(self, depl_period: Period, tank: Tank, period: Period) -> gp.Var:
         """Returns the continous MIP variable for weight of extracted salmon

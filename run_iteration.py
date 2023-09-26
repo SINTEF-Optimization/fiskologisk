@@ -19,7 +19,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, add_symmetry_breaks: bool, max_single_modules: int) -> None:
+def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -29,8 +29,22 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
 
     gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
     model = gpm.build_model()
+    if fixed_values_file != "":
+        fixed_values_file_path = os.path.join(file_dir, fixed_values_file)
+        with open(fixed_values_file_path, "r") as input_fixed_values_file:
+            fixed_values_json = json.load(input_fixed_values_file)
+            gpm.add_fixed_values(model, fixed_values_json)
 
     model.optimize()
+
+    #print_variables(list(gpm.extract_weight_variables.values()), 0.5)
+    #print_variables(list(gpm.population_weight_variables.values()), 0.5)
+    #print_variables(list(gpm.transfer_weight_variables.values()), 0.5)
+    #print_variables(list(gpm.contains_salmon_variables.values()), 0.5)
+    #print_variables(list(gpm.smolt_deployed_variables.values()), 0.5)
+    #print_variables(list(gpm.salmon_extracted_variables.values()), 0.5)
+    #print_variables(list(gpm.salmon_transferred_variables.values()), 0.5)
+    #print_variables(list(gpm.module_active_variables.values()), 0.5)
 
     if iteration.current_iteration < iteration.max_iteration:
 
@@ -81,6 +95,11 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     if iteration.solution_output_file != None:
         solution_output_file_local = iteration.solution_output_file.replace("%N", str(iteration.current_iteration))
         write_solution_file(os.path.join(file_dir, solution_output_file_local), environment, iteration.unextended_planning_years, gpm)
+
+def print_variables(variables: list[gp.Var], min_val: float) -> None:
+    for v in variables:
+        if v.X > min_val:
+            print(v.VarName + " = " + str(v.X))
 
 def read_iteration_setup(file_path: str) -> Iteration:
 
@@ -263,10 +282,11 @@ if __name__ == "__main__":
     allow_transfer = True
     add_symmetry_breaks = False
     max_single_modules = 0
+    fixed_values_file = ""
 
     opt_arguments = sys.argv[2:]
-    options = "m:o:s:t:"
-    long_options = ["Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules="]
+    options = "f:m:o:s:t:"
+    long_options = ["Fixed=", "Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules="]
 
     try:
         arguments, values = getopt.getopt(opt_arguments, options, long_options)
@@ -285,7 +305,10 @@ if __name__ == "__main__":
             elif argument in ("-m" "--Max_single_modules"):
                 max_single_modules = parse_int(value, 0)
 
-        run_iteration(file_path, objective, allow_transfer, add_symmetry_breaks, max_single_modules)
+            elif argument in ("-f" "--Fixed"):
+                fixed_values_file = value
+
+        run_iteration(file_path, objective, allow_transfer, add_symmetry_breaks, max_single_modules, fixed_values_file)
 
     except getopt.error as err:
         print(str(err))
