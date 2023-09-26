@@ -1,11 +1,13 @@
 Folder name format:
-	M<m>_T<t>_Y<y>_E<e>_P<p>
+	[S_]M<m>_T<t>_Y<y>_E<e>_P<p>[_F]
 where
 	m = # modules
 	t = # tanks in each modules
 	y = # years in main planning horizon
 	e = # periods in extended planning horizon
 	p = # periods in preplanning horizon
+	S_  when present means the setup is based on using modules with only one production cycle, and then using program input to limit the number of active simultaneous module production cycles.
+	_F  when present means the setup has input files for fixed startup of production cycles
 
 Input parameters under "periods" should hold
 

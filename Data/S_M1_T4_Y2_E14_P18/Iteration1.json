@@ -1,0 +1,32 @@
+{
+    "core_setup": "CoreProblem.json",
+    "iteration_setup": {
+        "current_iteration": 1,
+        "max_iteration": 3,
+        "unextended_planning_years": 2,
+        "input_file": "Iteration%N.json",
+        "solution_output_file": "S_M1_T4_Y2_I%N.json"
+    },
+    "initial_populations": [
+        {
+            "tank": 8,
+            "deploy_period": 18,
+            "weight": 71071.42857129611,
+            "in_use": true
+        },
+        {
+            "tank": 9,
+            "deploy_period": 18,
+            "weight": 157500.0,
+            "in_use": true
+        },
+        {
+            "tank": 10,
+            "in_use": true
+        },
+        {
+            "tank": 11,
+            "in_use": true
+        }
+    ]
+}

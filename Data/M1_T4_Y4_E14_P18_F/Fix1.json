@@ -1,0 +1,12 @@
+{
+    "deploy_periods": [
+        {
+            "module": 0,
+            "start_periods": [
+                42,
+                60,
+                68
+            ]
+        }
+    ]
+}

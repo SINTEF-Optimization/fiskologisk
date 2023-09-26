@@ -1,0 +1,896 @@
+{
+    "modules": [
+        {
+            "module_index": 0,
+            "tank_indices": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "tank_transfers": [
+                {
+                    "from": 0,
+                    "to": 1
+                },
+                {
+                    "from": 0,
+                    "to": 2
+                },
+                {
+                    "from": 1,
+                    "to": 3
+                }
+            ]
+        }
+    ],
+    "pre_planning_horizon": {
+        "first_year": 2021,
+        "first_period": 0,
+        "last_period": 23,
+        "deploy_periods": [
+            6,
+            7,
+            8,
+            12,
+            13,
+            14,
+            18,
+            19,
+            20
+        ]
+    },
+    "planning_horizon": {
+        "first_year": 2023,
+        "first_period": 24,
+        "last_ordinary_horizon_period": 59,
+        "last_period": 73,
+        "deploy_periods": [
+            24,
+            25,
+            26,
+            30,
+            31,
+            32,
+            36,
+            37,
+            38,
+            42,
+            43,
+            44,
+            48,
+            49,
+            50,
+            54,
+            55,
+            56,
+            60,
+            61,
+            62
+        ]
+    },
+    "production_cycles": [
+        {
+            "deploy_period": 20,
+            "module": 0,
+            "tank_cycles": [
+                {
+                    "tank": 0,
+                    "start_period": 24,
+                    "start_cause": "pre_planning_deploy",
+                    "end_period": 34,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 24,
+                            "biomass": 34492.84777111569
+                        },
+                        {
+                            "period": 25,
+                            "biomass": 44291.86171962612
+                        },
+                        {
+                            "period": 26,
+                            "biomass": 57293.9497042067
+                        },
+                        {
+                            "period": 27,
+                            "biomass": 74339.14823040823
+                        },
+                        {
+                            "period": 28,
+                            "biomass": 95595.3187704161
+                        },
+                        {
+                            "period": 29,
+                            "biomass": 122575.4622646135
+                        },
+                        {
+                            "period": 30,
+                            "biomass": 152883.93937563675
+                        },
+                        {
+                            "period": 31,
+                            "biomass": 96507.37493659907
+                        },
+                        {
+                            "period": 32,
+                            "biomass": 115753.64324799347
+                        },
+                        {
+                            "period": 33,
+                            "biomass": 135279.6574055476
+                        },
+                        {
+                            "period": 34,
+                            "biomass": 154010.7529407376
+                        }
+                    ]
+                },
+                {
+                    "tank": 1,
+                    "start_period": 24,
+                    "start_cause": "pre_planning_deploy",
+                    "end_period": 35,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 24,
+                            "biomass": 33085.0372762406
+                        },
+                        {
+                            "period": 25,
+                            "biomass": 42484.10875645496
+                        },
+                        {
+                            "period": 26,
+                            "biomass": 54955.52220695691
+                        },
+                        {
+                            "period": 27,
+                            "biomass": 71305.02841074862
+                        },
+                        {
+                            "period": 28,
+                            "biomass": 91693.63764744946
+                        },
+                        {
+                            "period": 29,
+                            "biomass": 117572.59838583584
+                        },
+                        {
+                            "period": 30,
+                            "biomass": 146644.04826026456
+                        },
+                        {
+                            "period": 31,
+                            "biomass": 88887.44820815304
+                        },
+                        {
+                            "period": 32,
+                            "biomass": 106614.09012389444
+                        },
+                        {
+                            "period": 33,
+                            "biomass": 124598.39001062825
+                        },
+                        {
+                            "period": 34,
+                            "biomass": 141850.5356146297
+                        },
+                        {
+                            "period": 35,
+                            "biomass": 157500.0
+                        }
+                    ]
+                },
+                {
+                    "tank": 2,
+                    "start_period": 24,
+                    "start_cause": "pre_planning_deploy",
+                    "end_period": 26,
+                    "end_cause": "post_smolt",
+                    "period_biomasses": [
+                        {
+                            "period": 24,
+                            "biomass": 94820.19570998159
+                        },
+                        {
+                            "period": 25,
+                            "biomass": 121757.5024388468
+                        },
+                        {
+                            "period": 26,
+                            "biomass": 157500.0
+                        }
+                    ]
+                },
+                {
+                    "tank": 2,
+                    "start_period": 31,
+                    "start_cause": "transfer",
+                    "transfer": {
+                        "period": 30,
+                        "from_tank": 0,
+                        "biomass": 73854.89711637248
+                    },
+                    "end_period": 36,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 31,
+                            "biomass": 81863.10962780069
+                        },
+                        {
+                            "period": 32,
+                            "biomass": 98188.9020735782
+                        },
+                        {
+                            "period": 33,
+                            "biomass": 114751.9910460423
+                        },
+                        {
+                            "period": 34,
+                            "biomass": 130640.78429374416
+                        },
+                        {
+                            "period": 35,
+                            "biomass": 145053.54835010305
+                        },
+                        {
+                            "period": 36,
+                            "biomass": 157499.99999999825
+                        }
+                    ]
+                },
+                {
+                    "tank": 3,
+                    "start_period": 24,
+                    "start_cause": "pre_planning_deploy",
+                    "end_period": 26,
+                    "end_cause": "post_smolt",
+                    "period_biomasses": [
+                        {
+                            "period": 24,
+                            "biomass": 94820.19570998159
+                        },
+                        {
+                            "period": 25,
+                            "biomass": 121757.5024388468
+                        },
+                        {
+                            "period": 26,
+                            "biomass": 157500.0
+                        }
+                    ]
+                },
+                {
+                    "tank": 3,
+                    "start_period": 31,
+                    "start_cause": "transfer",
+                    "transfer": {
+                        "period": 30,
+                        "from_tank": 1,
+                        "biomass": 73854.8971163733
+                    },
+                    "end_period": 36,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 31,
+                            "biomass": 81863.1096278016
+                        },
+                        {
+                            "period": 32,
+                            "biomass": 98188.90207357929
+                        },
+                        {
+                            "period": 33,
+                            "biomass": 114751.99104604358
+                        },
+                        {
+                            "period": 34,
+                            "biomass": 130640.78429374562
+                        },
+                        {
+                            "period": 35,
+                            "biomass": 145053.54835010465
+                        },
+                        {
+                            "period": 36,
+                            "biomass": 157500.0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "deploy_period": 38,
+            "module": 0,
+            "tank_cycles": [
+                {
+                    "tank": 0,
+                    "start_period": 38,
+                    "start_cause": "deploy",
+                    "end_period": 52,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 38,
+                            "biomass": 7151.844134895617
+                        },
+                        {
+                            "period": 39,
+                            "biomass": 11310.429161085052
+                        },
+                        {
+                            "period": 40,
+                            "biomass": 17821.897634258523
+                        },
+                        {
+                            "period": 41,
+                            "biomass": 28107.9043050539
+                        },
+                        {
+                            "period": 42,
+                            "biomass": 42241.00802805663
+                        },
+                        {
+                            "period": 43,
+                            "biomass": 60228.404318279
+                        },
+                        {
+                            "period": 44,
+                            "biomass": 82003.55721636114
+                        },
+                        {
+                            "period": 45,
+                            "biomass": 105614.53297056521
+                        },
+                        {
+                            "period": 46,
+                            "biomass": 129763.01749363661
+                        },
+                        {
+                            "period": 47,
+                            "biomass": 152805.4367906535
+                        },
+                        {
+                            "period": 48,
+                            "biomass": 86891.04884013951
+                        },
+                        {
+                            "period": 49,
+                            "biomass": 97828.45706656264
+                        },
+                        {
+                            "period": 50,
+                            "biomass": 111280.01431891174
+                        },
+                        {
+                            "period": 51,
+                            "biomass": 127555.94902135608
+                        },
+                        {
+                            "period": 52,
+                            "biomass": 146314.01594675274
+                        }
+                    ]
+                },
+                {
+                    "tank": 1,
+                    "start_period": 38,
+                    "start_cause": "deploy",
+                    "end_period": 53,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 38,
+                            "biomass": 6922.527439999686
+                        },
+                        {
+                            "period": 39,
+                            "biomass": 10947.771616519809
+                        },
+                        {
+                            "period": 40,
+                            "biomass": 17250.456396841033
+                        },
+                        {
+                            "period": 41,
+                            "biomass": 27206.65260072266
+                        },
+                        {
+                            "period": 42,
+                            "biomass": 40886.59255599632
+                        },
+                        {
+                            "period": 43,
+                            "biomass": 58297.2410607166
+                        },
+                        {
+                            "period": 44,
+                            "biomass": 79374.19556419482
+                        },
+                        {
+                            "period": 45,
+                            "biomass": 102228.1091088348
+                        },
+                        {
+                            "period": 46,
+                            "biomass": 125602.2967438411
+                        },
+                        {
+                            "period": 47,
+                            "biomass": 147905.88402271934
+                        },
+                        {
+                            "period": 48,
+                            "biomass": 81325.88315350514
+                        },
+                        {
+                            "period": 49,
+                            "biomass": 91562.77631220953
+                        },
+                        {
+                            "period": 50,
+                            "biomass": 104152.79321199255
+                        },
+                        {
+                            "period": 51,
+                            "biomass": 119386.29288191024
+                        },
+                        {
+                            "period": 52,
+                            "biomass": 136942.95009026153
+                        },
+                        {
+                            "period": 53,
+                            "biomass": 157500.0
+                        }
+                    ]
+                },
+                {
+                    "tank": 2,
+                    "start_period": 38,
+                    "start_cause": "deploy",
+                    "end_period": 43,
+                    "end_cause": "post_smolt",
+                    "period_biomasses": [
+                        {
+                            "period": 38,
+                            "biomass": 18702.395721684403
+                        },
+                        {
+                            "period": 39,
+                            "biomass": 29577.283559714902
+                        },
+                        {
+                            "period": 40,
+                            "biomass": 46605.06797693499
+                        },
+                        {
+                            "period": 41,
+                            "biomass": 73503.44041411736
+                        },
+                        {
+                            "period": 42,
+                            "biomass": 110462.14555612562
+                        },
+                        {
+                            "period": 43,
+                            "biomass": 157500.0
+                        }
+                    ]
+                },
+                {
+                    "tank": 2,
+                    "start_period": 48,
+                    "start_cause": "transfer",
+                    "transfer": {
+                        "period": 47,
+                        "from_tank": 0,
+                        "biomass": 76306.77669769386
+                    },
+                    "end_period": 53,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 48,
+                            "biomass": 81325.87776435289
+                        },
+                        {
+                            "period": 49,
+                            "biomass": 91562.7702446979
+                        },
+                        {
+                            "period": 50,
+                            "biomass": 104152.7863101891
+                        },
+                        {
+                            "period": 51,
+                            "biomass": 119386.28497064159
+                        },
+                        {
+                            "period": 52,
+                            "biomass": 136942.941015581
+                        },
+                        {
+                            "period": 53,
+                            "biomass": 157499.9822310478
+                        }
+                    ]
+                },
+                {
+                    "tank": 3,
+                    "start_period": 38,
+                    "start_cause": "deploy",
+                    "end_period": 43,
+                    "end_cause": "post_smolt",
+                    "period_biomasses": [
+                        {
+                            "period": 38,
+                            "biomass": 18702.395721684403
+                        },
+                        {
+                            "period": 39,
+                            "biomass": 29577.283559714902
+                        },
+                        {
+                            "period": 40,
+                            "biomass": 46605.06797693499
+                        },
+                        {
+                            "period": 41,
+                            "biomass": 73503.44041411736
+                        },
+                        {
+                            "period": 42,
+                            "biomass": 110462.14555612562
+                        },
+                        {
+                            "period": 43,
+                            "biomass": 157500.0
+                        }
+                    ]
+                },
+                {
+                    "tank": 3,
+                    "start_period": 48,
+                    "start_cause": "transfer",
+                    "transfer": {
+                        "period": 47,
+                        "from_tank": 1,
+                        "biomass": 76306.78175424965
+                    },
+                    "end_period": 53,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 48,
+                            "biomass": 81325.88315350514
+                        },
+                        {
+                            "period": 49,
+                            "biomass": 91562.77631220953
+                        },
+                        {
+                            "period": 50,
+                            "biomass": 104152.79321199255
+                        },
+                        {
+                            "period": 51,
+                            "biomass": 119386.29288191024
+                        },
+                        {
+                            "period": 52,
+                            "biomass": 136942.95009026153
+                        },
+                        {
+                            "period": 53,
+                            "biomass": 157500.0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "deploy_period": 56,
+            "module": 0,
+            "tank_cycles": [
+                {
+                    "tank": 0,
+                    "start_period": 56,
+                    "start_cause": "deploy",
+                    "end_period": 71,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 56,
+                            "biomass": 6891.806051939159
+                        },
+                        {
+                            "period": 57,
+                            "biomass": 11588.148650526047
+                        },
+                        {
+                            "period": 58,
+                            "biomass": 17836.669239873157
+                        },
+                        {
+                            "period": 59,
+                            "biomass": 25188.47680968146
+                        },
+                        {
+                            "period": 60,
+                            "biomass": 33085.036872284116
+                        },
+                        {
+                            "period": 61,
+                            "biomass": 42484.10823773917
+                        },
+                        {
+                            "period": 62,
+                            "biomass": 54955.52153596962
+                        },
+                        {
+                            "period": 63,
+                            "biomass": 71305.0275401397
+                        },
+                        {
+                            "period": 64,
+                            "biomass": 91693.63652790296
+                        },
+                        {
+                            "period": 65,
+                            "biomass": 117572.5969503165
+                        },
+                        {
+                            "period": 66,
+                            "biomass": 146644.0464697932
+                        },
+                        {
+                            "period": 67,
+                            "biomass": 88887.44602169494
+                        },
+                        {
+                            "period": 68,
+                            "biomass": 106614.08750139546
+                        },
+                        {
+                            "period": 69,
+                            "biomass": 124598.38694575052
+                        },
+                        {
+                            "period": 70,
+                            "biomass": 141850.5321253828
+                        },
+                        {
+                            "period": 71,
+                            "biomass": 157499.99612580673
+                        }
+                    ]
+                },
+                {
+                    "tank": 1,
+                    "start_period": 56,
+                    "start_cause": "deploy",
+                    "end_period": 70,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 56,
+                            "biomass": 7185.061353240363
+                        },
+                        {
+                            "period": 57,
+                            "biomass": 12081.239430855967
+                        },
+                        {
+                            "period": 58,
+                            "biomass": 18595.642689318553
+                        },
+                        {
+                            "period": 59,
+                            "biomass": 26260.279222644476
+                        },
+                        {
+                            "period": 60,
+                            "biomass": 34492.84817507218
+                        },
+                        {
+                            "period": 61,
+                            "biomass": 44291.862238341906
+                        },
+                        {
+                            "period": 62,
+                            "biomass": 57293.95037519399
+                        },
+                        {
+                            "period": 63,
+                            "biomass": 74339.14910101714
+                        },
+                        {
+                            "period": 64,
+                            "biomass": 95595.31988996264
+                        },
+                        {
+                            "period": 65,
+                            "biomass": 122575.46370013291
+                        },
+                        {
+                            "period": 66,
+                            "biomass": 152883.94116610818
+                        },
+                        {
+                            "period": 67,
+                            "biomass": 96507.37712305629
+                        },
+                        {
+                            "period": 68,
+                            "biomass": 115753.64587049138
+                        },
+                        {
+                            "period": 69,
+                            "biomass": 135279.66047042407
+                        },
+                        {
+                            "period": 70,
+                            "biomass": 154010.7564299831
+                        }
+                    ]
+                },
+                {
+                    "tank": 2,
+                    "start_period": 56,
+                    "start_cause": "deploy",
+                    "end_period": 62,
+                    "end_cause": "post_smolt",
+                    "period_biomasses": [
+                        {
+                            "period": 56,
+                            "biomass": 19751.599527082275
+                        },
+                        {
+                            "period": 57,
+                            "biomass": 33211.10165906189
+                        },
+                        {
+                            "period": 58,
+                            "biomass": 51119.07460365539
+                        },
+                        {
+                            "period": 59,
+                            "biomass": 72189.01734793322
+                        },
+                        {
+                            "period": 60,
+                            "biomass": 94820.19570998159
+                        },
+                        {
+                            "period": 61,
+                            "biomass": 121757.5024388468
+                        },
+                        {
+                            "period": 62,
+                            "biomass": 157499.99999999997
+                        }
+                    ]
+                },
+                {
+                    "tank": 2,
+                    "start_period": 67,
+                    "start_cause": "transfer",
+                    "transfer": {
+                        "period": 66,
+                        "from_tank": 0,
+                        "biomass": 73854.8971163733
+                    },
+                    "end_period": 72,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 67,
+                            "biomass": 81863.1096278016
+                        },
+                        {
+                            "period": 68,
+                            "biomass": 98188.9020735793
+                        },
+                        {
+                            "period": 69,
+                            "biomass": 114751.9910460436
+                        },
+                        {
+                            "period": 70,
+                            "biomass": 130640.78429374563
+                        },
+                        {
+                            "period": 71,
+                            "biomass": 145053.54835010465
+                        },
+                        {
+                            "period": 72,
+                            "biomass": 157500.0
+                        }
+                    ]
+                },
+                {
+                    "tank": 3,
+                    "start_period": 56,
+                    "start_cause": "deploy",
+                    "end_period": 62,
+                    "end_cause": "post_smolt",
+                    "period_biomasses": [
+                        {
+                            "period": 56,
+                            "biomass": 19751.599527082275
+                        },
+                        {
+                            "period": 57,
+                            "biomass": 33211.10165906189
+                        },
+                        {
+                            "period": 58,
+                            "biomass": 51119.07460365539
+                        },
+                        {
+                            "period": 59,
+                            "biomass": 72189.01734793322
+                        },
+                        {
+                            "period": 60,
+                            "biomass": 94820.19570998159
+                        },
+                        {
+                            "period": 61,
+                            "biomass": 121757.5024388468
+                        },
+                        {
+                            "period": 62,
+                            "biomass": 157499.99999999997
+                        }
+                    ]
+                },
+                {
+                    "tank": 3,
+                    "start_period": 67,
+                    "start_cause": "transfer",
+                    "transfer": {
+                        "period": 66,
+                        "from_tank": 1,
+                        "biomass": 73854.89711637328
+                    },
+                    "end_period": 72,
+                    "end_cause": "harvest",
+                    "period_biomasses": [
+                        {
+                            "period": 67,
+                            "biomass": 81863.1096278016
+                        },
+                        {
+                            "period": 68,
+                            "biomass": 98188.90207357929
+                        },
+                        {
+                            "period": 69,
+                            "biomass": 114751.99104604358
+                        },
+                        {
+                            "period": 70,
+                            "biomass": 130640.78429374562
+                        },
+                        {
+                            "period": 71,
+                            "biomass": 145053.54835010465
+                        },
+                        {
+                            "period": 72,
+                            "biomass": 157500.0
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

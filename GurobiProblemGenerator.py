@@ -36,6 +36,9 @@ class GurobiProblemGenerator:
     add_symmetry_breaks: bool
     """Whether extra constraints for breaking symmetries should be added. Default is False"""
 
+    max_single_modules: int
+    """If positive, each module has maximum one production cycle, they are deployed in chronological order, and the number sets a maximum limit on the number of simultaneously active deployments"""
+
     extract_weight_variables: dict[(int, int, int), gp.Var]
     """The continous MIP variables for weight of salmon extracted from the tanks for post-smolt or harvesting. Key is deploy period, tank and extract period"""
 
@@ -57,11 +60,15 @@ class GurobiProblemGenerator:
     salmon_transferred_variables: dict[(int, int), gp.Var]
     """The binary MIP variables for whether salmon was transferred to a tank at a given period. Key is tank transferred to and period"""
 
-    def __init__(self, environment: Environment, objective_profile: ObjectiveProfile = ObjectiveProfile.PROFIT, allow_transfer: bool = True, add_symmetry_breaks: bool = False) -> None:
+    module_active_variables: dict[(int, int), gp.Var]
+    """The binary MIP variables for whether the module was active in a production cycle this or previous period. Key is module and deploy period within the planning horizon"""
+
+    def __init__(self, environment: Environment, objective_profile: ObjectiveProfile = ObjectiveProfile.PROFIT, allow_transfer: bool = True, add_symmetry_breaks: bool = False, max_single_modules: int = 0) -> None:
         self.environment = environment
         self.objective_profile = objective_profile
         self.allow_transfer = allow_transfer
         self.add_symmetry_breaks = add_symmetry_breaks
+        self.max_single_modules = max_single_modules
 
         self.extract_weight_variables = {}
         self.population_weight_variables = {}
@@ -70,6 +77,7 @@ class GurobiProblemGenerator:
         self.smolt_deployed_variables = {}
         self.salmon_extracted_variables = {}
         self.salmon_transferred_variables = {}
+        self.module_active_variables = {}
 
     def build_model(self) -> gp.Model:
         """Builds the MIP model
@@ -83,6 +91,19 @@ class GurobiProblemGenerator:
         self.add_objective(model)
         self.add_constraints(model)
         return model
+
+    def add_fixed_values(self, model: gp.Model, fixed_values_json):
+        """Reads information on the fixed values to be set for some of the variables in the MIP problem for landbased salmon farming
+
+        args:
+            - fixed_values_json The deserialized json object with the setup fixed values
+        """
+
+        if "deploy_periods" in fixed_values_json:
+            for depl_p in fixed_values_json["deploy_periods"]:
+                module_idx = depl_p["module"]
+                for dep_p in depl_p["start_periods"]:
+                    self.add_fixed_deploy_period(model, module_idx, dep_p)
 
     def add_variables(self, model: gp.Model) -> None:
         """Generates all variables for the MIP problem
@@ -153,6 +174,15 @@ class GurobiProblemGenerator:
                         key = (t.index, p.index)
                         var = model.addVar(name = "sigma_%s,%s"%key, vtype = GRB.BINARY)
                         self.salmon_transferred_variables[key] = var
+
+        # Binary variable: Module is active in period or previous period
+        self.module_active_variables = {}
+        if self.max_single_modules > 0:
+            for m in self.environment.modules:
+                for dep_p in self.environment.plan_release_periods:
+                    key = (m.index, dep_p.index)
+                    var = model.addVar(name = "phi_%s,%s"%key, vtype = GRB.BINARY)
+                    self.module_active_variables[key] = var
 
     def add_objective(self, model: gp.Model) -> None:
         """Builds the objective function of the MIP problem
@@ -274,6 +304,8 @@ class GurobiProblemGenerator:
         self.add_improving_constraints(model)
         if self.add_symmetry_breaks:
             self.add_symmetry_break_constraints(model)
+        if self.max_single_modules > 0:
+            self.add_max_single_modules_constraints(model)
 
     def add_initial_value_constraints(self, model: gp.Model) -> None:
         """Adds the smolt deployment constraints to the MIP problem
@@ -412,7 +444,8 @@ class GurobiProblemGenerator:
         """
 
         # Set limit on total biomass each period (5.12)
-        regulation_rescale = len(self.environment.tanks) / self.environment.parameters.tanks_in_regulations
+        max_production_tanks = len(self.environment.tanks) if self.max_single_modules == 0 else self.max_single_modules * len(self.environment.modules[0].tanks)
+        regulation_rescale = max_production_tanks / self.environment.parameters.tanks_in_regulations
         max_mass = self.environment.parameters.max_total_biomass * regulation_rescale
         for p in self.environment.periods:
             weight_expr = gp.LinExpr()
@@ -545,13 +578,70 @@ class GurobiProblemGenerator:
         mod_type = self.environment.parameters.modules_type
 
         if mod_type == "FourTanks":
-            print("Adding force deploy constraints")
             for dep_p in self.environment.plan_release_periods:
                 for m in self.environment.modules:
                     delta = self.smolt_deployed_variable(m, dep_p)
                     nmb_tanks = 4 if self.allow_transfer else 3
                     for t in m.tanks[:nmb_tanks]:
-                        model.addConstr(delta <= self.contains_salmon_variable(t, dep_p), name = "force_deploy_tank_%s,%s"%(t, dep_p))
+                        model.addConstr(delta <= self.contains_salmon_variable(t, dep_p), name = "force_deploy_tank_%s,%s"%(t.index, dep_p.index))
+
+    def add_max_single_modules_constraints(self, model: gp.Model) -> None:
+        """Adds extra constraints for modules with single production cycle
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+        """
+
+        for m in self.environment.modules:
+
+            sum_delta = gp.LinExpr()
+            num_tanks = len(m.tanks)
+            is_last_mod = m == self.environment.modules[-1]
+            next_m = None if is_last_mod else next(nm for nm in self.environment.modules if nm.index == m.index + 1)
+            sum_delta_next = gp.LinExpr()
+
+            for dep_p in self.environment.plan_release_periods:
+                phi = self.module_active_variable(m, dep_p)
+                delta = self.smolt_deployed_variable(m, dep_p)
+                sum_delta.addTerms(1.0, delta)
+
+                # Set value of phi variables
+                if dep_p == self.environment.periods[0]:
+                    for t in m.tanks:
+                        if t.initial_use:
+                            model.addConstr(phi == 1, name = "set_phi_first_period_%s"%m.index)
+                            break
+                    else:
+                        model.addConstr(phi == delta, name = "set_phi_first_period_%s"%m.index)
+                else:
+                    prev_p = next (pp for pp in self.environment.periods if pp.index == dep_p.index - 1)
+                    use_expr = gp.LinExpr()
+                    use_expr.addTerms(1.0, delta)
+                    for t in m.tanks:
+                        use_expr.addTerms(1.0, self.contains_salmon_variable(t, prev_p))
+                    model.addConstr(gp.LinExpr(1.0, phi) <= use_expr, name = "set_max_phi_%s,%s"%(m.index, dep_p.index))
+                    model.addConstr(use_expr <= gp.LinExpr(num_tanks, phi), name = "set_min_phi_%s,%s"%(m.index, dep_p.index))
+
+                if not is_last_mod:
+
+                    # Ensure module is not deployed after next in list of modules
+                    sum_delta_next.addTerms(1.0, self.smolt_deployed_variable(next_m, dep_p))
+                    model.addConstr(sum_delta_next <= sum_delta, name = "modules_chronologically_%s,%s"%(m.index, dep_p.index))
+
+            # Ensure module is only deployed once
+            model.addConstr(sum_delta == 1, name = "module_deployed_once_%s"%m.index)
+
+        for dep_p in self.environment.plan_release_periods:
+
+            # Limit number of active modules each period
+            sum_mod = gp.LinExpr()
+            for m in self.environment.modules:
+                sum_mod.addTerms(1.0, self.module_active_variable(m, dep_p))
+            model.addConstr(sum_mod <= self.max_single_modules, name = "maximum_modules_%s"%dep_p.index)
+
+    def add_fixed_deploy_period(self, model: gp.Model, m_idx: int, dep_p_idx: int) -> None:
+
+        model.addConstr(self.smolt_deployed_variables[(m_idx, dep_p_idx)] == 1.0, name = "fix_deploy_period_%s,%s"%(m_idx, dep_p_idx))
 
     def extract_weight_variable(self, depl_period: Period, tank: Tank, period: Period) -> gp.Var:
         """Returns the continous MIP variable for weight of extracted salmon
@@ -626,3 +716,13 @@ class GurobiProblemGenerator:
         """
 
         return self.salmon_transferred_variables[(tank.index, period.index)]
+
+    def module_active_variable(self, module: Module, depl_period: Period) -> gp.Var:
+        """The binary MIP variables for whether the module was active in a production cycle this or previous period
+
+        args:
+            - module: 'Module' The module
+            - depl_period: 'Period' The deploy period
+        """
+
+        return self.module_active_variables[(module.index, depl_period.index)]
