@@ -100,10 +100,27 @@ class GurobiProblemGenerator:
         """
 
         if "deploy_periods" in fixed_values_json:
+            end_period = self.environment.periods[-1].index + 1
             for depl_p in fixed_values_json["deploy_periods"]:
                 module_idx = depl_p["module"]
-                for dep_p in depl_p["start_periods"]:
-                    self.add_fixed_deploy_period(model, module_idx, dep_p)
+                first_period = -1
+                active_periods = [False] * end_period
+                for dep_period in depl_p["deploy_periods"]:
+                    start_p = dep_period["start_period"]
+                    self.add_fixed_deploy_period(model, module_idx, start_p)
+                    if first_period == -1:
+                        first_period = start_p
+
+                    end_p = dep_period["end_period"]
+                    for p_idx in range(start_p, end_p + 1):
+                        active_periods[p_idx] = True
+
+                if first_period != -1:
+                    for p_idx in range(first_period, end_period):
+                        if active_periods[p_idx]:
+                            self.add_fixed_active_period(model, module_idx, p_idx)
+                        else:
+                            self.add_fixed_inactive_period(model, module_idx, p_idx)
 
     def add_variables(self, model: gp.Model) -> None:
         """Generates all variables for the MIP problem
@@ -640,8 +657,43 @@ class GurobiProblemGenerator:
             model.addConstr(sum_mod <= self.max_single_modules, name = "maximum_modules_%s"%dep_p.index)
 
     def add_fixed_deploy_period(self, model: gp.Model, m_idx: int, dep_p_idx: int) -> None:
+        """Adds extra constraint forcing a module to be deployed at a given deploy period
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraint into
+            - m_idx: 'int' The index of the module with a ficed deploy
+            - dep_p_idx: 'int' The index of the deploy period when the module has a fixed deploy
+        """
 
         model.addConstr(self.smolt_deployed_variables[(m_idx, dep_p_idx)] == 1.0, name = "fix_deploy_period_%s,%s"%(m_idx, dep_p_idx))
+
+    def add_fixed_active_period(self, model: gp.Model, m_idx: int, p_idx: int) -> None:
+        """Adds extra constraint forcing a module to have at least one tank with salmon at a given period
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraint into
+            - m_idx: 'int' The index of the module
+            - p_idx: 'int' The index of the period when at least one tank in the module has salmon
+        """
+
+        m = next(mm for mm in self.environment.modules if mm.index == m_idx)
+        sum_alpha = gp.LinExpr()
+        for t in m.tanks:
+            sum_alpha.addTerms(1.0, self.contains_salmon_variables[(t.index, p_idx)])
+        model.addConstr(sum_alpha >= 1.0, name = "fix_module_active_%s,%s"%(m_idx, p_idx))
+
+    def add_fixed_inactive_period(self, model: gp.Model, m_idx: int, p_idx: int) -> None:
+        """Adds extra constraints forcing a module to have no tanks with salmon at a given period
+        
+        args:
+            - model: 'gp.Model' The MIP model to add the constraints into
+            - m_idx: 'int' The index of the module
+            - p_idx: 'int' The index of the period when no tanks in the module have salmon
+        """
+
+        m = next(mm for mm in self.environment.modules if mm.index == m_idx)
+        for t in m.tanks:
+            model.addConstr(self.contains_salmon_variables[(t.index, p_idx)] == 0.0, name = "fix_tank_inactive_%s,%s"%(t.index, p_idx))
 
     def extract_weight_variable(self, depl_period: Period, tank: Tank, period: Period) -> gp.Var:
         """Returns the continous MIP variable for weight of extracted salmon

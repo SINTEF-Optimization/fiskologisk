@@ -2,17 +2,32 @@
     "deploy_periods": [
         {
             "module": 0,
-            "start_periods": [
-                38,
-                54
+            "deploy_periods": [
+                {
+                    "start_period": 38,
+                    "end_period": 52
+                },
+                {
+                    "start_period": 54,
+                    "end_period": 69
+                }
             ]
         },
         {
             "module": 1,
-            "start_periods": [
-                26,
-                42,
-                54
+            "deploy_periods": [
+                {
+                    "start_period": 26,
+                    "end_period": 40
+                },
+                {
+                    "start_period": 42,
+                    "end_period": 47
+                },
+                {
+                    "start_period": 54,
+                    "end_period": 69
+                }
             ]
         }
     ]
