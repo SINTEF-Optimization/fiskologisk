@@ -30,7 +30,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
     model = gpm.build_model()
     if fixed_values_file != "":
-        fixed_values_file_path = os.path.join(file_dir, fixed_values_file)
+        fixed_values_file_path = os.path.join(file_dir.replace("\\","/"), fixed_values_file.replace("\\","/"))
         with open(fixed_values_file_path, "r") as input_fixed_values_file:
             fixed_values_json = json.load(input_fixed_values_file)
             gpm.add_fixed_values(model, fixed_values_json)
@@ -102,7 +102,7 @@ def print_variables(variables: list[gp.Var], min_val: float) -> None:
             print(v.VarName + " = " + str(v.X))
 
 def read_iteration_setup(file_path: str) -> Iteration:
-
+    file_path = file_path.replace("\\","/")
     with open(file_path, "r") as input_file:
         data = json.load(input_file)
         core_setup_file = data["core_setup"]

@@ -23,9 +23,9 @@ def read_core_problem(dir : str, local_file_path : str) -> Environment:
     """
 
     environment = Environment()
-    file_path = os.path.join(dir, local_file_path)
+    file_path = os.path.join(dir, local_file_path.replace("\\","/"))
     file_dir = os.path.dirname(file_path)
-
+ 
     with open(file_path, "r") as input_file:
         data = json.load(input_file)
 
@@ -263,7 +263,7 @@ def read_csv_table(dir : str, local_file_path : str) -> list[list[float]]:
 
     result = []
 
-    file_path = os.path.join(dir, local_file_path)
+    file_path = os.path.join(dir, local_file_path.replace("\\","/"))
     with open(file_path, "r") as csv_file:
         csv_reader = csv.reader(csv_file)
         for row in list(csv_reader)[1:]:
