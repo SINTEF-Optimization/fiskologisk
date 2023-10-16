@@ -51,8 +51,8 @@ struct Problem {
 
     deploy_period_data: HashMap<usize, HashMap<usize, PeriodSpec>>,
 
-    max_deploy_mass: f32,
-    min_deploy_mass: f32,
+    max_deploy_per_tank: f32,
+    min_deploy_per_tank: f32,
 
     volume_bins: usize,
     max_module_use_length: usize,
@@ -113,8 +113,8 @@ fn state_biomass_limits(problem: &Problem, time: usize, age: usize, tanks: usize
     assert!(minimum_growth >= 0.75 * maximum_growth);
 
     // Asssume that the biomass stays within the limits of smolt deployment and the growth range.
-    let minimum_deployed_grown = problem.min_deploy_mass * minimum_growth * tanks as f32;
-    let maximum_deployed_grown = problem.max_deploy_mass * maximum_growth * tanks as f32;
+    let minimum_deployed_grown = problem.min_deploy_per_tank * minimum_growth;
+    let maximum_deployed_grown = problem.max_deploy_per_tank * maximum_growth * tanks as f32;
 
     // All the states should satisfy the `max_biomass_per_tank` constraint, so
     // we can also assume the biomass does not exceed this number.
@@ -177,7 +177,7 @@ fn foreach_successor_state(
         if can_deploy {
             assert!(problem.monthly_growth_factors[&next_time].contains_key(&next_time));
 
-            for deploy_tanks in 1..=(problem.num_tanks) {
+            for deploy_tanks in 1..=problem.num_tanks {
                 for deploy_biomass in 0..problem.volume_bins {
                     let new_state = ModuleState {
                         deploy_age: 0,
@@ -252,13 +252,6 @@ fn foreach_successor_state(
                     tanks: state.tanks,
                 },
             );
-        } else {
-            if state.tanks == 4 {
-                println!(
-                    "Cannot grow from tanks=4 deploy={} time={} biomass={}",
-                    deploy_time, time, prev_biomass
-                );
-            }
         }
 
         // Transfer during this period
@@ -270,7 +263,27 @@ fn foreach_successor_state(
                 .copied()
                 .unwrap_or(false);
 
-        let can_transfer = false;
+        // let can_transfer = false;
+
+        // println!(
+        //     " succ grow_next={},{} transf={} tanks={} deploy={} time={} biomass={} ({}) --> {} ({})",
+        //     can_grow_next,
+        //     can_grow_undisturbed,
+        //     can_transfer,
+        //     state.tanks,
+        //     deploy_time,
+        //     time,
+        //     prev_biomass,
+        //     state.biomass,
+        //     next_biomass_undisturbed,
+        //     round_biomass_level(
+        //         problem,
+        //         time + 1,
+        //         state.deploy_age + 1,
+        //         state.tanks,
+        //         next_biomass_undisturbed
+        //     )
+        // );
 
         if can_transfer {
             let transfer_growth_factor =
@@ -323,13 +336,6 @@ fn foreach_successor_state(
                 .copied();
 
             if let Some(revenue_per_weight) = revenue_per_weight {
-                if _is_postsmolt {
-                    // println!("can sell postsmolt at deploy={} t={}", deploy_time, time );
-                } else {
-                    // TODO this never happens!
-                    println!("can sell harvest at deploy={} t={}", deploy_time, time);
-                }
-
                 for harvest_tanks in 1..=(state.tanks) {
                     let remaining_tanks = state.tanks - harvest_tanks;
 
@@ -346,10 +352,6 @@ fn foreach_successor_state(
                     let remaining_weight = next_biomass_undisturbed - harvested_weight;
 
                     let total_revenue = revenue_per_weight * harvested_weight;
-
-                    // TODO normally, the costs of this period (`time`) are realized in the next
-                    // time period. But here, we also need to add costs that apply to the
-                    // harvested fish, since we don't remember their mass in the next state.
 
                     // TODO oxygen costs also apply?
                     let this_cost = harvest_tanks as f32 * problem.tank_const_cost;
@@ -460,12 +462,12 @@ fn solve_module(problem: &Problem) -> Solution {
                 // Unreachable state.
                 continue;
             }
-            debug!("State t={} {:?}", current_time, state);
+            // println!("FINDING SUCCS OF State t={} {:?}", current_time, state);
 
             foreach_successor_state(problem, current_time, &state, |cost, next: ModuleState| {
                 let next_state_idx = state_to_idx(&next, problem);
-                trace!("next({}) {:?}", next_state_idx, next);
                 let total_cost = state_costs[state_idx] + cost;
+                // println!("  next({}) {:?}", next_state_idx, next);
 
                 if next_state_costs[next_state_idx] > total_cost {
                     let new_node_idx = nodes.len() as i32;
@@ -500,7 +502,7 @@ fn solve_module(problem: &Problem) -> Solution {
         .unwrap()
         .0;
 
-    println!("Best solution has cost {}", state_costs[best_state_idx]);
+    let objective = state_costs[best_state_idx];
     let mut node = &nodes[state_nodes[best_state_idx] as usize];
     let mut states: Vec<(usize, usize)> = vec![(problem.planning_end_time + 1, best_state_idx)];
     let mut t = problem.planning_end_time;
@@ -543,6 +545,7 @@ fn solve_module(problem: &Problem) -> Solution {
         );
     }
 
+    println!("Best solution has cost {}", objective);
     Solution { actions: vec![] }
 }
 

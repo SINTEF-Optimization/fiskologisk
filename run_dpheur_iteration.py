@@ -51,7 +51,7 @@ if __name__ == "__main__":
     post_smolt_sell_price = {
         dep_p.index: {
             p.index: sum(
-                0.0 * frac * cls.post_smolt_revenue
+                frac * cls.post_smolt_revenue
                 for cls, frac in zip(
                     environment.weight_classes,
                     dep_p.periods_after_deploy_data[p.index].weight_distribution,
@@ -66,8 +66,7 @@ if __name__ == "__main__":
     print("## harvest yield", environment.parameters.harvest_yield)
     harvest_sell_price = {
         dep_p.index: {
-            # TODO remove this, just used for checking if harvesting is feasible
-            p.index: 100.0* environment.parameters.harvest_yield
+            p.index: environment.parameters.harvest_yield
             * sum(
                 frac * cls.harvest_revenue
                 for cls, frac in zip(
@@ -162,17 +161,18 @@ if __name__ == "__main__":
 
     max_biomass_per_tank = environment.parameters.max_tank_density * avg_tank_volume
     print("## max biomass per tank", max_biomass_per_tank)
+    print("## deploy limits", environment.parameters.min_deploy_smolt,environment.parameters.max_deploy_smolt )
 
     problem_json = {
         # PARAMETERS
-        "volume_bins": 1000,
+        "volume_bins": 3000,
         "max_module_use_length": 25,
         "num_tanks": len(environment.tanks),
         "planning_start_time": min(p.index for p in environment.periods),
         "planning_end_time": max(p.index for p in environment.periods),
         "smolt_deploy_price": environment.parameters.smolt_price,
-        "max_deploy_mass": environment.parameters.max_deploy_smolt,
-        "min_deploy_mass": environment.parameters.min_deploy_smolt,
+        "max_deploy_per_tank": environment.parameters.max_deploy_smolt / len(environment.tanks),
+        "min_deploy_per_tank": environment.parameters.min_deploy_smolt / len(environment.tanks),
         "tank_const_cost": environment.parameters.min_tank_cost,
         "max_biomass_per_tank": max_biomass_per_tank,
         # TABLES INDEXED ON BY TUPLE (DEPLOY_TIME,AGE)
