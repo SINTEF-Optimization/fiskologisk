@@ -1,10 +1,15 @@
 import sys
+import time
 import getopt
 import gurobipy as gp
 import json
 import os
+import math
+from SolutionProvider import SolutionProvider
 from GurobiProblemGenerator import GurobiProblemGenerator
 from GurobiProblemGenerator import ObjectiveProfile
+from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
+from DecomposistionSolver import DecomposistionSolver
 from Environment import Environment
 from read_problem import read_core_problem
 
@@ -19,7 +24,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str) -> None:
+def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, use_decomposistion: bool, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -27,24 +32,40 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     environment = read_core_problem(file_dir, iteration.core_setup_file)
     environment.add_initial_populations(iteration.initial_populations)
 
-    gpm = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
-    model = gpm.build_model()
-    if fixed_values_file != "":
-        fixed_values_file_path = os.path.join(file_dir, fixed_values_file)
-        with open(fixed_values_file_path, "r") as input_fixed_values_file:
-            fixed_values_json = json.load(input_fixed_values_file)
-            gpm.add_fixed_values(model, fixed_values_json)
+    sol_prov: SolutionProvider = None
+    time0 = time.time()
+    if use_decomposistion:
+        gmpg = GurobiMasterProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
+        sol_prov = gmpg
 
-    model.optimize()
+        decomp_solver = DecomposistionSolver(gmpg)
+        decomp_solver.build_model()
+        decomp_solver.optimize()
+    else:
+        gpg = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
+        sol_prov = gpg
+        model = gpg.build_model()
 
-    #print_variables(list(gpm.extract_weight_variables.values()), 0.5)
-    #print_variables(list(gpm.population_weight_variables.values()), 0.5)
-    #print_variables(list(gpm.transfer_weight_variables.values()), 0.5)
-    #print_variables(list(gpm.contains_salmon_variables.values()), 0.5)
-    #print_variables(list(gpm.smolt_deployed_variables.values()), 0.5)
-    #print_variables(list(gpm.salmon_extracted_variables.values()), 0.5)
-    #print_variables(list(gpm.salmon_transferred_variables.values()), 0.5)
-    #print_variables(list(gpm.module_active_variables.values()), 0.5)
+        if fixed_values_file != "":
+            fixed_values_file_path = os.path.join(file_dir, fixed_values_file)
+            with open(fixed_values_file_path, "r") as input_fixed_values_file:
+                fixed_values_json = json.load(input_fixed_values_file)
+                gpg.add_fixed_values(model, fixed_values_json)
+
+        model.optimize()
+        sol_prov.drop_positive_solution(model)
+
+        #print_variables(list(gpg.extract_weight_variables.values()), 0.5)
+        #print_variables(list(gpg.population_weight_variables.values()), 0.5)
+        #print_variables(list(gpg.transfer_weight_variables.values()), 0.5)
+        #print_variables(list(gpg.contains_salmon_variables.values()), 0.5)
+        #print_variables(list(gpg.smolt_deployed_variables.values()), 0.5)
+        #print_variables(list(gpg.salmon_extracted_variables.values()), 0.5)
+        #print_variables(list(gpg.salmon_transferred_variables.values()), 0.5)
+        #print_variables(list(gpg.module_active_variables.values()), 0.5)
+
+    time1 = time.time()
+    print("Entire problem (sec)\t%s"%(time1-time0))
 
     if iteration.current_iteration < iteration.max_iteration:
 
@@ -59,22 +80,24 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
             last_horizon_period = next(p for p in environment.periods if p.index == first_extended_idx - 1)
 
             for t in environment.tanks:
-                init_in_use = gpm.contains_salmon_variable(t, last_horizon_period).X > 0.5
+                init_in_use = sol_prov.contains_salmon_value(t, last_horizon_period) > 0.5
                 init_dep_p = 0
                 init_weight = 0.0
 
                 for dep_p in first_extended_period.deploy_periods:
                     if dep_p != first_extended_period:
-                        pop_var = gpm.population_weight_variable(dep_p, t, first_extended_period).X
-                        if pop_var > 0.5:
+                        pop_val = sol_prov.population_weight_value(dep_p, t, first_extended_period)
+                        if pop_val > 0.5:
                             init_dep_p = dep_p.index - unextended_planning_periods
-                            init_weight = pop_var
+                            init_weight = pop_val
 
                 if init_in_use or init_weight > 0.0:
                     next_init_pop = { "tank": t.index }
                     if init_weight > 0.0:
-                        next_init_pop["deploy_period"] = init_dep_p
-                        next_init_pop["weight"] = init_weight
+                        red_init_weight = float(math.floor(init_weight - 1e-7))
+                        if red_init_weight > 0.0:
+                            next_init_pop["deploy_period"] = init_dep_p
+                            next_init_pop["weight"] = red_init_weight
                     if init_in_use:
                         next_init_pop["in_use"] = True
                     next_initial_populations.append(next_init_pop)
@@ -94,7 +117,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
 
     if iteration.solution_output_file != None:
         solution_output_file_local = iteration.solution_output_file.replace("%N", str(iteration.current_iteration))
-        write_solution_file(os.path.join(file_dir, solution_output_file_local), environment, iteration.unextended_planning_years, gpm)
+        write_solution_file(os.path.join(file_dir, solution_output_file_local), environment, iteration.unextended_planning_years, sol_prov, allow_transfer)
 
 def print_variables(variables: list[gp.Var], min_val: float) -> None:
     for v in variables:
@@ -122,7 +145,7 @@ def read_iteration_setup(file_path: str) -> Iteration:
 
     return Iteration(current_iteration, max_iteration, unextended_planning_years, core_setup_file, input_file, solution_output_file, initial_populations)
 
-def write_solution_file(file_path: str, environment: Environment, planning_years: int, gpm: GurobiProblemGenerator) -> Iteration:
+def write_solution_file(file_path: str, environment: Environment, planning_years: int, sol_prov: SolutionProvider, allow_transfer: bool) -> Iteration:
 
     modules = []
     for m in environment.modules:
@@ -164,28 +187,28 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
     for dep_p in environment.plan_release_periods:
         if len(dep_p.periods_after_deploy) > 0 and dep_p.periods_after_deploy[0] == dep_p:
             for t in environment.tanks:
-                var = gpm.population_weight_variable(dep_p, t, dep_p)
-                if var.X > 0.5:
+                value = sol_prov.population_weight_value(dep_p, t, dep_p)
+                if value > 0.5:
                     add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, dep_p.index, "deploy")
 
     # Start of tank cycles initiated by transfer
-    if gpm.allow_transfer:
+    if allow_transfer:
         for dep_p in environment.release_periods:
             for p in dep_p.transfer_periods:
                 for from_t in environment.tanks:
                     for to_t in from_t.transferable_to:
-                        var = gpm.transfer_weight_variable(dep_p, from_t, to_t, p)
-                        if var.X > 0.5:
-                            add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[to_t.index], to_t.index, p.index + 1, "transfer", from_t.index, var.X)
+                        value = sol_prov.transfer_weight_value(dep_p, from_t, to_t, p)
+                        if value > 0.5:
+                            add_tank_cycle_start(prod_cyles_by_deploy, dep_p.index, module_by_tank[to_t.index], to_t.index, p.index + 1, "transfer", from_t.index, value)
 
     # Add tank populations
     for dep_p in environment.release_periods:
         for p in dep_p.periods_after_deploy:
             for t in environment.tanks:
-                var = gpm.population_weight_variable(dep_p, t, p)
-                if var.X > 0.5:
+                value = sol_prov.population_weight_value(dep_p, t, p)
+                if value > 0.5:
                     tank_cycle = get_tank_cycle(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, p.index)
-                    add_tank_cycle_weight(tank_cycle, p.index, var.X)
+                    add_tank_cycle_weight(tank_cycle, p.index, value)
 
     # Add extractions
     for dep_p in environment.release_periods:
@@ -193,8 +216,8 @@ def write_solution_file(file_path: str, environment: Environment, planning_years
             extract_periods = dep_p.postsmolt_extract_periods if extr_idx == 0 else dep_p.harvest_periods
             for p in extract_periods:
                 for t in environment.tanks:
-                    var = gpm.extract_weight_variable(dep_p, t, p)
-                    if var.X > 0.5:
+                    value = sol_prov.extract_weight_value(dep_p, t, p)
+                    if value > 0.5:
                         tank_cycle = get_tank_cycle(prod_cyles_by_deploy, dep_p.index, module_by_tank[t.index], t.index, p.index)
                         tank_cycle["end_period"] = p.index
                         tank_cycle["end_cause"] = "post_smolt" if extr_idx == 0 else "harvest"
@@ -281,12 +304,13 @@ if __name__ == "__main__":
     objective = ObjectiveProfile.PROFIT
     allow_transfer = True
     add_symmetry_breaks = False
+    use_decomposistion = False
     max_single_modules = 0
     fixed_values_file = ""
 
     opt_arguments = sys.argv[2:]
-    options = "f:m:o:s:t:"
-    long_options = ["Fixed=", "Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules="]
+    options = "d:f:m:o:s:t:"
+    long_options = ["Decomposition=", "Fixed=", "Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules="]
 
     try:
         arguments, values = getopt.getopt(opt_arguments, options, long_options)
@@ -302,13 +326,16 @@ if __name__ == "__main__":
             elif argument in ("-t", "--Transfer"):
                 allow_transfer = parse_bool(value, True)
 
+            elif argument in ("-d" "--Decomposition"):
+                use_decomposistion = parse_bool(value, True)
+
             elif argument in ("-m" "--Max_single_modules"):
                 max_single_modules = parse_int(value, 0)
 
             elif argument in ("-f" "--Fixed"):
                 fixed_values_file = value
 
-        run_iteration(file_path, objective, allow_transfer, add_symmetry_breaks, max_single_modules, fixed_values_file)
+        run_iteration(file_path, objective, allow_transfer, use_decomposistion, add_symmetry_breaks, max_single_modules, fixed_values_file)
 
     except getopt.error as err:
         print(str(err))
