@@ -165,17 +165,20 @@ if __name__ == "__main__":
 
     problem_json = {
         # PARAMETERS
-        "volume_bins": 3000,
+        "volume_bins": 1000,
         "max_module_use_length": 25,
         "num_tanks": len(environment.tanks),
         "planning_start_time": min(p.index for p in environment.periods),
         "planning_end_time": max(p.index for p in environment.periods),
         "smolt_deploy_price": environment.parameters.smolt_price,
-        "max_deploy_per_tank": environment.parameters.max_deploy_smolt / len(environment.tanks),
+        "max_deploy_per_tank": environment.parameters.max_deploy_smolt,
         "min_deploy_per_tank": environment.parameters.min_deploy_smolt / len(environment.tanks),
         "tank_const_cost": environment.parameters.min_tank_cost,
         "max_biomass_per_tank": max_biomass_per_tank,
+
         # TABLES INDEXED ON BY TUPLE (DEPLOY_TIME,AGE)
+        # TODO: clean this up a bit by putting all the tables into `deploy_period_data`.
+
         "post_smolt_sell_price": post_smolt_sell_price,
         "harvest_sell_price": harvest_sell_price,
         "biomass_costs": biomass_costs,
@@ -185,10 +188,9 @@ if __name__ == "__main__":
         "accumulated_growth_factors": accumulated_growth_factors,
         "accumulated_minimum_growth_adjustment_factors": accumulated_minimum_growth_adjustment_factors,
         "deploy_period_data": {},
+        "logarithmic_bins": False
     }
 
-
-    
     problem_str = json.dumps(problem_json)
 
     t0 = time.time()
@@ -203,3 +205,41 @@ if __name__ == "__main__":
 
     for action in solution["actions"]:
         print(f"Action: {action}")
+
+
+    # import matplotlib.pyplot as plt
+
+    # bins = [25,50,75,100,200,300,400,1000,2000,3000,5000,9000]
+    # objectives = []
+    # objectives_logbins = []
+    # for logbins in [False, True]:
+    #     for bin in bins:
+    #         problem_json["volume_bins"] = bin
+    #         problem_json["logarithmic_bins"] = logbins
+        
+    #         problem_str = json.dumps(problem_json)
+
+    #         t0 = time.time()
+    #         solution_jsonstr = dp_heur.solve_module_json(problem_str)
+    #         t1 = time.time()
+
+    #         print(f"DP heuristic solver finished in {t1-t0:.2f}")
+
+    #         solution = json.loads(solution_jsonstr)
+
+    #         print("SOLUTION", solution)
+
+    #         for action in solution["actions"]:
+    #             print(f"Action: {action}")
+
+    #         if logbins:
+    #             objectives_logbins.append(solution["objective"])
+    #         else:
+    #             objectives.append(solution["objective"])
+
+    # plt.plot(bins,objectives,label="Linear biomass scale")
+    # plt.plot(bins,objectives_logbins, label="Logarithmic biomass scale")
+    # plt.xlabel("Number of discrete biomass levels")
+    # plt.ylabel("Objective value")
+    # plt.legend()
+    # plt.show()

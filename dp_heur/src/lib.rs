@@ -56,6 +56,8 @@ struct Problem {
 
     volume_bins: usize,
     max_module_use_length: usize,
+
+    logarithmic_bins: bool,
 }
 
 #[derive(serde::Deserialize)]
@@ -72,6 +74,7 @@ struct PeriodSpec {
 
 #[derive(serde::Serialize)]
 pub struct Solution {
+    objective: f32,
     actions: Vec<Action>,
 }
 
@@ -139,7 +142,11 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 fn calc_biomass(problem: &Problem, time: usize, state: &ModuleState) -> f32 {
     let (lb, ub) = state_biomass_limits(problem, time, state.deploy_age, state.tanks);
     let relative_biomass = (state.biomass as f32) / (problem.volume_bins - 1) as f32;
-    lerp(lb, ub, relative_biomass)
+    if problem.logarithmic_bins {
+        10.0f32.powf(lerp(lb.log10(), ub.log10(), relative_biomass))
+    } else {
+        lerp(lb, ub, relative_biomass)
+    }
 }
 
 fn round_biomass_level(
@@ -150,7 +157,13 @@ fn round_biomass_level(
     biomass: f32,
 ) -> usize {
     let (lb, ub) = state_biomass_limits(problem, time, age, tanks);
-    let relative_biomass = (biomass - lb) / (ub - lb);
+
+    let relative_biomass = if problem.logarithmic_bins {
+        (biomass.log10() - lb.log10()) / (ub.log10() - lb.log10())
+    } else {
+        (biomass - lb) / (ub - lb)
+    };
+
     if relative_biomass < -0.1 || relative_biomass >= 1.1 {
         warn!("Biomass is outside state biomass limits");
     }
@@ -546,7 +559,10 @@ fn solve_module(problem: &Problem) -> Solution {
     }
 
     println!("Best solution has cost {}", objective);
-    Solution { actions: vec![] }
+    Solution {
+        actions: vec![],
+        objective,
+    }
 }
 
 fn state_to_idx(next: &ModuleState, problem: &Problem) -> usize {
