@@ -62,3 +62,27 @@ class Environment:
 
             if "in_use" in init_pop:
                 tank.initial_use = init_pop["in_use"]
+
+    def get_tanks(self, module_idx: int) -> list[Tank]:
+        """Gets either the tanks of a specific module or all tanks in the model
+
+        args:
+            - module_idx: 'int' The index of the specific module to get the tanks for, or -1 to get all the tanks in the model
+
+        returns:
+            A list with the requested tanks
+        """
+
+        return self.tanks if module_idx == -1 else self.modules[module_idx].tanks
+
+    def get_modules(self, module_idx: int) -> list[Module]:
+        """Gets either a specific module or all modules in the model
+
+        args:
+            - module_idx: 'int' The index of the specific requested module, or -1 to get all the modules in the model
+
+        returns:
+            If module_idx is -1, the list of all modules. If module_idx >= 0, a singleton list with the requested module.
+        """
+
+        return self.modules if module_idx == -1 else [self.modules[module_idx]]

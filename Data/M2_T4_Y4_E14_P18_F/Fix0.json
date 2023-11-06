@@ -2,20 +2,44 @@
     "deploy_periods": [
         {
             "module": 0,
-            "start_periods": [
-                24,
-                32,
-                50,
-                66
+            "deploy_periods": [
+                {
+                    "start_period": 24,
+                    "end_period": 30
+                },
+                {
+                    "start_period": 32,
+                    "end_period": 48
+                },
+                {
+                    "start_period": 50,
+                    "end_period": 64
+                },
+                {
+                    "start_period": 66,
+                    "end_period": 81
+                }
             ]
         },
         {
             "module": 1,
-            "start_periods": [
-                26,
-                42,
-                60,
-                68
+            "deploy_periods": [
+                {
+                    "start_period": 26,
+                    "end_period": 40
+                },
+                {
+                    "start_period": 42,
+                    "end_period": 57
+                },
+                {
+                    "start_period": 60,
+                    "end_period": 66
+                },
+                {
+                    "start_period": 68,
+                    "end_period": 84
+                }
             ]
         }
     ]
