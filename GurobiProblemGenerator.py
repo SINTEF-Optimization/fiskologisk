@@ -336,7 +336,7 @@ class GurobiProblemGenerator(SolutionProvider):
             - yearly_production_dual_values: 'dict[int, float]' The dual values from the master problem of the expressions for the total mass of salmon extracted as post smolt or harvest within a production year. Key is year
         """
 
-        obj_expr = self.core_objective_expression
+        obj_expr = gp.LinExpr(self.core_objective_expression)
 
         if period_biomass_dual_values != None:
             for p in self.environment.periods:
