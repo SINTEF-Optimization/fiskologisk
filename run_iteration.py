@@ -39,7 +39,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
         sol_prov = gmpg
 
         decomp_solver = DecomposistionSolver(gmpg)
-        decomp_solver.build_model()
+        decomp_solver.build_model(use_dp_heuristic=True)
         decomp_solver.optimize()
     else:
         gpg = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)

@@ -127,6 +127,7 @@ class GurobiProblemGenerator(SolutionProvider):
         self.add_variables(model, module_idx)
         self.core_objective_expression = self.create_core_objective_expression(module_idx)
         self.add_constraints(model, module_idx)
+        
         return model
 
     def get_master_column(self, module_idx: int, objective_value: float, best_sol: bool) -> MasterColumn:
@@ -568,6 +569,10 @@ class GurobiProblemGenerator(SolutionProvider):
         if self.allow_transfer:
             self.add_salmon_transfer_constraints(model, module_idx)
         self.add_salmon_density_constraints(model, module_idx)
+
+        # TODO why not add the regulatory constraints in the B&P subproblem as well?
+        #      This could fix the problem of non-convergence of the one-module problem.
+        
         if module_idx == -1:
             self.add_regulatory_constraints(model)
         else:
@@ -1219,7 +1224,6 @@ class GurobiProblemGenerator(SolutionProvider):
             - model: 'gp.Model' The MIP model holding the MIP problem
         """
     
-        print("objective = %s"%model.ObjVal)
         for key, var in self.extract_weight_variables.items():
             if var.X > 0.5:
                 print("extract_weight(%s) = %s"%(key, var.X))
@@ -1241,3 +1245,4 @@ class GurobiProblemGenerator(SolutionProvider):
         for key, var in self.salmon_transferred_variables.items():
             if var.X > 0.001:
                 print("salmon_transferred(%s) = %s"%(key, var.X))
+        print("objective = %s"%model.ObjVal)

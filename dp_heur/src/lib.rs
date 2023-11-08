@@ -17,7 +17,7 @@ struct ModuleState {
     tanks: usize,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 struct Problem {
     num_tanks: usize,
     planning_start_time: usize,
@@ -25,6 +25,10 @@ struct Problem {
     smolt_deploy_price: f32,
     tank_const_cost: f32,
     max_biomass_per_tank: f32,
+
+    initial_age: usize,
+    initial_tanks: usize,
+    initial_biomass: f32,
 
     // The meaning of map<(a,b),...> is that the first index
     // specifies the deploy period and the second is the age.
@@ -38,6 +42,7 @@ struct Problem {
 
     // Costs per mass
     biomass_costs: HashMap<usize, HashMap<usize, f32>>, // Different cost for every month
+    biomass_costs_survival: HashMap<usize, HashMap<usize, f32>>,
 
     // Periods in which tranfer is possible
     transfer_periods: HashMap<usize, HashMap<usize, bool>>,
@@ -51,8 +56,8 @@ struct Problem {
 
     deploy_period_data: HashMap<usize, HashMap<usize, PeriodSpec>>,
 
-    max_deploy_per_tank: f32,
-    min_deploy_per_tank: f32,
+    max_deploy: f32,
+    min_deploy: f32,
 
     volume_bins: usize,
     max_module_use_length: usize,
@@ -60,7 +65,7 @@ struct Problem {
     logarithmic_bins: bool,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 struct PeriodSpec {
     harvest_sell_price: f32,
     post_smolt_sell_price: f32,
@@ -79,6 +84,10 @@ pub struct Solution {
 }
 
 fn state_biomass_limits(problem: &Problem, time: usize, age: usize, tanks: usize) -> (f32, f32) {
+    if time < problem.planning_start_time {
+        return (0.0, 1.0);
+    }
+
     trace!(
         "Computing biomass limits for t={} age={} p0={}",
         time,
@@ -87,23 +96,16 @@ fn state_biomass_limits(problem: &Problem, time: usize, age: usize, tanks: usize
     );
     let deploy_time = time - age;
 
-    assert!(
-        problem.accumulated_minimum_growth_adjustment_factors[&deploy_time]
-            .contains_key(&(time - 1))
-            == problem.accumulated_growth_factors[&deploy_time].contains_key(&(time - 1))
-    );
+    // assert!(
+    //     problem.accumulated_minimum_growth_adjustment_factors[&deploy_time]
+    //         .contains_key(&(time - 1))
+    //         == problem.accumulated_growth_factors[&deploy_time].contains_key(&(time - 1))
+    // );
 
-    let minimum_growth_adjustment = if age == 0 {
-        1.0
-    } else {
-        problem.accumulated_minimum_growth_adjustment_factors[&deploy_time][&(time - 1)]
-    };
+    let minimum_growth_adjustment =
+        problem.accumulated_minimum_growth_adjustment_factors[&deploy_time][&time];
 
-    let maximum_growth = if age == 0 {
-        1.0
-    } else {
-        problem.accumulated_growth_factors[&deploy_time][&(time - 1)]
-    };
+    let maximum_growth = problem.accumulated_growth_factors[&deploy_time][&time];
 
     let minimum_growth = maximum_growth * minimum_growth_adjustment;
 
@@ -115,9 +117,21 @@ fn state_biomass_limits(problem: &Problem, time: usize, age: usize, tanks: usize
     assert!(minimum_growth <= maximum_growth);
     assert!(minimum_growth >= 0.75 * maximum_growth);
 
+    let minimum_initial_weight = if deploy_time < problem.planning_start_time {
+        problem.initial_biomass
+    } else {
+        problem.min_deploy
+    };
+
+    let maximum_initial_weight = if deploy_time < problem.planning_start_time {
+        problem.initial_biomass
+    } else {
+        problem.max_deploy
+    };
+
     // Asssume that the biomass stays within the limits of smolt deployment and the growth range.
-    let minimum_deployed_grown = problem.min_deploy_per_tank * minimum_growth;
-    let maximum_deployed_grown = problem.max_deploy_per_tank * maximum_growth * tanks as f32;
+    let minimum_deployed_grown = minimum_initial_weight * minimum_growth;
+    let maximum_deployed_grown = maximum_initial_weight * maximum_growth;
 
     // All the states should satisfy the `max_biomass_per_tank` constraint, so
     // we can also assume the biomass does not exceed this number.
@@ -353,11 +367,13 @@ fn foreach_successor_state(
                     let remaining_tanks = state.tanks - harvest_tanks;
 
                     if remaining_tanks > 0 && !can_grow_next {
-                        // There is no growth factor, so the fish should live longer from
+                        // There is no growth factor, so the fish shouldn't live longer from
                         // this state. We can only harvest everything.
 
                         continue;
                     }
+
+                    
 
                     let tank_fraction = harvest_tanks as f32 / state.tanks as f32;
 
@@ -427,6 +443,8 @@ pub fn solve_module_json(problem: &str) -> PyResult<String> {
 }
 
 fn solve_module(problem: &Problem) -> Solution {
+    print!("PROBLEM {:?}", problem);
+
     let n_states_per_time =
         problem.volume_bins * problem.num_tanks as usize * problem.max_module_use_length + 1;
     let n_time_steps = problem.planning_end_time - problem.planning_start_time + 1;
@@ -454,8 +472,32 @@ fn solve_module(problem: &Problem) -> Solution {
     let mut nodes: Vec<Node> = Vec::new();
     nodes.reserve(n_states_per_time * n_time_steps / 4);
 
-    // TODO: what about non-empty initial state?
-    let initial_state_idx = 0;
+    let (initial_state, first_time) = if problem.initial_tanks > 0 {
+        let state = ModuleState {
+            deploy_age: problem.initial_age,
+            biomass: round_biomass_level(
+                problem,
+                problem.planning_start_time,
+                problem.initial_age,
+                problem.initial_tanks,
+                problem.initial_biomass,
+            ),
+            tanks: problem.initial_tanks,
+        };
+
+        (state, problem.planning_start_time)
+    } else {
+        let state = ModuleState {
+            tanks: 0,
+            deploy_age: 0,
+            biomass: 0,
+        };
+        (state, problem.planning_start_time - 1)
+    };
+
+    trace!("Initial state {:?}", initial_state);
+
+    let initial_state_idx = state_to_idx(&initial_state, problem);
     state_costs[initial_state_idx] = 0.0;
     state_nodes[initial_state_idx] = ROOT_NODE;
 
@@ -464,20 +506,20 @@ fn solve_module(problem: &Problem) -> Solution {
     //  * state i>0 = i-1 is converted from (age,biomass,tanks) as follows:
     //    biomass + (biomass_levels)*age + (biomass_levels*max_use_length)*tanks
 
-    for current_time in (problem.planning_start_time - 1)..=problem.planning_end_time {
+    for prev_time in (first_time)..=problem.planning_end_time {
         for state_idx in 0..n_states_per_time {
             let state = idx_to_state(state_idx, problem);
 
             assert!(state_idx == state_to_idx(&state, problem));
 
             if state_costs[state_idx].is_infinite() {
-                trace!("State unreachable t={} {:?}", current_time, state);
+                trace!("State unreachable t={} {:?}", prev_time, state);
                 // Unreachable state.
                 continue;
             }
             // println!("FINDING SUCCS OF State t={} {:?}", current_time, state);
 
-            foreach_successor_state(problem, current_time, &state, |cost, next: ModuleState| {
+            foreach_successor_state(problem, prev_time, &state, |cost, next: ModuleState| {
                 let next_state_idx = state_to_idx(&next, problem);
                 let total_cost = state_costs[state_idx] + cost;
                 // println!("  next({}) {:?}", next_state_idx, next);
@@ -526,7 +568,7 @@ fn solve_module(problem: &Problem) -> Solution {
         states.push((t, node.prev_state as usize));
     }
 
-    assert!(t == problem.planning_start_time - 1);
+    assert!(t == first_time);
     states.reverse();
 
     println!(

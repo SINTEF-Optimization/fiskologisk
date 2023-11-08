@@ -56,7 +56,6 @@ class MasterColumn:
     def drop_positive_solution(self) -> None:
         """Prints the objective and the variable values of the column. Only positive values are printed."""
     
-        print("objective = %s"%self.objective_value)
         for key, value in self.extract_weight_values.items():
             if value > 0.5:
                 print("extract_weight(%s) = %s"%(key, value))
@@ -78,3 +77,4 @@ class MasterColumn:
         for key, value in self.salmon_transferred_values.items():
             if value > 0.001:
                 print("salmon_transferred(%s) = %s"%(key, value))
+        print("objective = %s"%self.objective_value)
