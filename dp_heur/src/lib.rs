@@ -220,11 +220,10 @@ fn round_biomass_level(
     (relative_biomass_clamped * (problem.volume_bins - 1) as f32).round() as usize
 }
 
-#[derive(Clone, Copy)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Action {
     harvest: f32,
-    transfer :f32,
+    transfer: f32,
 }
 
 fn foreach_successor_state(
@@ -237,7 +236,15 @@ fn foreach_successor_state(
     let next_time = prev_time + 1;
     if prev_state.tanks == 0 {
         // We can stay empty ...
-        f(0.0, Action{harvest:0.0, transfer: 0.0},vec![], *prev_state);
+        f(
+            0.0,
+            Action {
+                harvest: 0.0,
+                transfer: 0.0,
+            },
+            vec![],
+            *prev_state,
+        );
 
         // ... or we can start a new production cycle
         let can_deploy = problem.monthly_growth_factors.contains_key(&next_time);
@@ -280,7 +287,10 @@ fn foreach_successor_state(
                     let cost = next_biomass * problem.smolt_deploy_price;
                     f(
                         cost,
-                        Action{harvest:0.0, transfer: 0.0},
+                        Action {
+                            harvest: 0.0,
+                            transfer: 0.0,
+                        },
                         vec![CostDescription::Smolt {
                             weight: next_biomass,
                             cost: cost,
@@ -320,7 +330,10 @@ fn foreach_successor_state(
 
             f(
                 prev_cost,
-                Action{harvest:0.0, transfer: 0.0},
+                Action {
+                    harvest: 0.0,
+                    transfer: 0.0,
+                },
                 vec![CostDescription::Biomass {
                     weight: prev_biomass,
                     tank_cost: prev_tank_cost,
@@ -376,7 +389,8 @@ fn foreach_successor_state(
             let transfer_growth_factor =
                 problem.monthly_growth_factors_transfer[&deploy_time][&prev_time];
 
-            for next_tanks in (prev_state.tanks + 1)..=(problem.num_tanks.min(prev_state.tanks+2)) {
+            for next_tanks in (prev_state.tanks + 1)..=(problem.num_tanks.min(prev_state.tanks + 2))
+            {
                 let additional_tanks = next_tanks - prev_state.tanks;
                 assert!(additional_tanks >= 1 && additional_tanks <= problem.num_tanks - 1);
 
@@ -389,9 +403,17 @@ fn foreach_successor_state(
 
                 let new_biomass_when_transferring = untransferred_weight + transferred_weight;
 
+                // let can_grow_transfer = can_grow_next
+                //     && new_biomass_when_transferring
+                //         <= next_tanks as f32 * problem.max_biomass_per_tank * 1.0001;
+
+                // NOTE: the total biomass in the next step needs to be within the
+                //  maximum biomass for the number of tanks in the *previous* state (not the next).
+                //  (to be aligned with the MIP model)
+
                 let can_grow_transfer = can_grow_next
                     && new_biomass_when_transferring
-                        <= next_tanks as f32 * problem.max_biomass_per_tank * 1.0001;
+                        <= prev_state.tanks as f32 * problem.max_biomass_per_tank * 1.0001;
 
                 if !can_grow_transfer {
                     continue;
@@ -399,7 +421,10 @@ fn foreach_successor_state(
 
                 f(
                     prev_cost,
-                    Action{harvest:0.0, transfer: transferred_weight},
+                    Action {
+                        harvest: 0.0,
+                        transfer: transferred_weight,
+                    },
                     vec![CostDescription::Biomass {
                         weight: prev_biomass,
                         price: fed_cost,
@@ -479,7 +504,10 @@ fn foreach_successor_state(
                     if remaining_tanks == 0 {
                         f(
                             cost,
-                            Action{harvest:harvested_weight, transfer: 0.0},
+                            Action {
+                                harvest: harvested_weight,
+                                transfer: 0.0,
+                            },
                             cost_descr,
                             ModuleState {
                                 deploy_age: 0,
@@ -490,7 +518,10 @@ fn foreach_successor_state(
                     } else {
                         f(
                             cost,
-                            Action{harvest:harvested_weight, transfer: 0.0},
+                            Action {
+                                harvest: harvested_weight,
+                                transfer: 0.0,
+                            },
                             cost_descr,
                             ModuleState {
                                 deploy_age: prev_state.deploy_age + 1,
@@ -511,14 +542,13 @@ fn foreach_successor_state(
     }
 }
 
-
 #[derive(serde::Serialize)]
 struct SolutionState {
     deploy_period: i32,
     period: u32,
     biomass: f32,
-    transferred :f32,
-    harvested :f32,
+    transferred: f32,
+    harvested: f32,
     num_tanks: u32,
 }
 
@@ -559,7 +589,7 @@ fn solve_module(problem: &Problem) -> Solution {
     struct Node {
         prev_state: u32,
         prev_node: i32,
-        action :Action,
+        action: Action,
         cost_descr: Vec<CostDescription>,
     }
 
@@ -667,7 +697,12 @@ fn solve_module(problem: &Problem) -> Solution {
     while node.prev_node >= 0 {
         t -= 1;
         node = &nodes[node.prev_node as usize];
-        states.push((t, node.action, node.cost_descr.clone(), node.prev_state as usize));
+        states.push((
+            t,
+            node.action,
+            node.cost_descr.clone(),
+            node.prev_state as usize,
+        ));
     }
 
     assert!(t == first_time);

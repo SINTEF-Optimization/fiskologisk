@@ -83,6 +83,14 @@ class SubProblem:
             self.model.write(f"tmp/initial_sp{self.module_index}.lp")
 
         print("SUBPROBLEM ", self.module_index)
+        mxx = self.problem_generator.environment.modules[self.module_index]
+
+        print(
+            [
+                f"{tank.index}: tr from {[t.index for t in tank.transferable_from]} tr to {[t.index for t in tank.transferable_to]}"
+                for tank in mxx.tanks
+            ]
+        )
         print("period biomass duals   ", period_biomass_duals)
         print("yearly production duals", yearly_production_duals)
         self.problem_generator.set_subproblem_objective(
@@ -101,25 +109,47 @@ class SubProblem:
             )
             if solution is not None:
                 m = self.problem_generator.environment.modules[self.module_index]
+
+                def num_active_tanks(period_tanks):
+                    """If transferring to a larger number of tanks in the next period,
+                    use the number of tanks from the next period."""
+
+                    for i in range(len(period_tanks)):
+                        p, n = period_tanks[i]
+                        next_n = (
+                            period_tanks[i + 1][1] if i + 1 < len(period_tanks) else -1
+                        )
+                        n = next_n if n > 0 and n < next_n else n
+                        yield p, n
+
                 constraints = [
                     self.problem_generator.lock_num_tanks(
                         self.model, period_map[p], m, n
                     )
-                    for p, n in solution.period_tanks.items()
+                    for p, n in num_active_tanks(solution.period_tanks)
                 ]
-                self.model.write("tmp/relaxdp.lp")
+
                 self.model.optimize()
-                self.model.computeIIS()
-                self.model.write("tmp/iis.ilp")
-                obj_value = self.problem_generator.calculate_core_objective(
+                relaxdp_obj_value = self.problem_generator.calculate_core_objective(
                     self.module_index
                 )
                 profit_columns.append(
                     self.problem_generator.get_master_column(
-                        self.module_index, obj_value, False
+                        self.module_index, relaxdp_obj_value, False
                     )
                 )
+                self.problem_generator.drop_positive_solution(self.model)
                 self.problem_generator.remove_constraints(self.model, constraints)
+
+                self.model.optimize()
+                mip_obj_value = self.problem_generator.calculate_core_objective(
+                    self.module_index
+                )
+
+                self.problem_generator.drop_positive_solution(self.model)
+                print(
+                    f"relax_dp is suboptimal by {100.0 * (mip_obj_value / relaxdp_obj_value - 1.0):.2f}%"
+                )
 
         raise Exception()
 

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import json
 from math import prod
 import time
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import dp_heur
 from Environment import Environment
@@ -12,7 +12,7 @@ from MasterColumn import MasterColumn
 @dataclass
 class DPSolution:
     objective_value: float
-    period_tanks: dict[int, int]
+    period_tanks: List[Tuple[int, int]]
 
 
 def solve_dp(
@@ -351,7 +351,7 @@ def solve_dp(
 
     retval = DPSolution(
         objective_value,
-        {state["period"]: state["num_tanks"] for state in solution["states"]},
+        [(state["period"], state["num_tanks"]) for state in solution["states"]],
     )
     # print("RETVAL", retval)
     # raise Exception()
