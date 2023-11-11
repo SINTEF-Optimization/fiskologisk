@@ -1026,6 +1026,12 @@ class GurobiProblemGenerator(SolutionProvider):
 
         return constraints
 
+    def lock_num_tanks(self, model: gp.Model, period :Period, module :Module, num_tanks :int) -> gp.Constr:
+        return model.addConstr(
+            sum(self.contains_salmon_variable(t,period) 
+                for t in module.tanks) == num_tanks, 
+            name = f"lock_num_tanks_p{period.index}_m{module.index}_eq{num_tanks}")
+
     def remove_constraints(self, model: gp.Model, constraints: list[gp.Constr]) -> None:
         """Removes the given constraints from the MIP model.
 
