@@ -237,7 +237,7 @@ def solve_dp(
 
     problem_json = {
         # PARAMETERS
-        "volume_bins": 10000,
+        "volume_bins": 1000,
         "max_module_use_length": 25,
         "num_tanks": len(module_tanks),
         "planning_start_time": planning_start_time,

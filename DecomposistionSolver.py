@@ -97,6 +97,9 @@ class SubProblem:
             self.model, period_biomass_duals, yearly_production_duals
         )
         self.model.write(f"tmp/sp{self.module_index}_{iteration}.lp")
+        # self.model.optimize()
+        # self.problem_generator.drop_positive_solution(self.model)
+
 
         profit_columns = []
         period_map = {p.index: p for p in self.problem_generator.environment.periods}
