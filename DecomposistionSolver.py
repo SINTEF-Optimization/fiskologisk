@@ -113,24 +113,39 @@ class SubProblem:
             if solution is not None:
                 m = self.problem_generator.environment.modules[self.module_index]
 
-                def num_active_tanks(period_tanks):
-                    """If transferring to a larger number of tanks in the next period,
-                    use the number of tanks from the next period."""
+                # def num_active_tanks(period_tanks):
+                #     """If transferring to a larger number of tanks in the next period,
+                #     use the number of tanks from the next period."""
 
-                    for i in range(len(period_tanks)):
-                        p, n = period_tanks[i]
-                        next_n = (
-                            period_tanks[i + 1][1] if i + 1 < len(period_tanks) else -1
-                        )
-                        n = next_n if n > 0 and n < next_n else n
-                        yield p, n
+                #     for i in range(len(period_tanks)):
+                #         p, n = period_tanks[i]
+                #         next_n = (
+                #             period_tanks[i + 1][1] if i + 1 < len(period_tanks) else -1
+                #         )
+                #         n = next_n if n > 0 and n < next_n else n
+                #         yield p, n
 
-                constraints = [
-                    self.problem_generator.lock_num_tanks(
-                        self.model, period_map[p], m, n
+                # constraints = [
+                #     self.problem_generator.lock_num_tanks(
+                #         self.model, period_map[p], m, n
+                #     )
+                #     for p, n in num_active_tanks(solution.period_tanks)
+                # ]
+
+
+                constraints = []
+                ntanks = solution.period_tanks
+                prev_n = -1
+                for i in range(len(ntanks)):
+                    p, n = ntanks[i]
+                    next_n = (
+                        ntanks[i + 1][1] if i + 1 < len(ntanks) else -1
                     )
-                    for p, n in num_active_tanks(solution.period_tanks)
-                ]
+                    n = next_n if n > 0 and n < next_n else n
+                    if n < prev_n or (prev_n <= 0 and n > prev_n):
+                        constraints.append(self.problem_generator.lock_num_tanks(self.model, period_map[p], m, n))
+                    prev_n = n
+
 
                 self.model.optimize()
                 relaxdp_obj_value = self.problem_generator.calculate_core_objective(
