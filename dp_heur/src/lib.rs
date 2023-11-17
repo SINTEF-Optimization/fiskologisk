@@ -28,7 +28,8 @@ struct Problem {
     max_biomass_per_tank: f32,
 
     initial_age: usize,
-    initial_tanks: usize,
+    initial_tanks_in_use: usize,
+    initial_tanks_cleaning: usize,
     initial_biomass: f32,
 
     // The meaning of map<(a,b),...> is that the first index
@@ -648,18 +649,18 @@ fn solve_module(problem: &Problem) -> Solution {
     let mut nodes: Vec<Node> = Vec::new();
     nodes.reserve(n_states_per_time * n_time_steps / 4);
 
-    let (initial_state, first_time) = if problem.initial_tanks > 0 {
+    let (initial_state, first_time) = if problem.initial_tanks_in_use > 0 {
         let state = ModuleState {
             deploy_age: problem.initial_age,
             biomass: round_biomass_level(
                 problem,
                 problem.planning_start_time,
                 problem.initial_age,
-                problem.initial_tanks,
+                problem.initial_tanks_in_use,
                 problem.initial_biomass,
             ),
-            tanks_in_use: problem.initial_tanks,
-            tanks_being_cleaned: 0,
+            tanks_in_use: problem.initial_tanks_in_use,
+            tanks_being_cleaned: problem.initial_tanks_cleaning,
         };
 
         (state, problem.planning_start_time)

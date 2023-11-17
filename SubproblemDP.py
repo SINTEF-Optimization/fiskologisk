@@ -27,36 +27,37 @@ def solve_dp(
 
     module_tanks = environment.modules[module_idx].tanks
     if len(module_tanks) >= 6:
-        print(
-            "Warning: DP heuristic solver maybe unsuitable with a large number of tanks in a module"
-        )
+        print("Warning: DP heuristic solver maybe unsuitable with a large number of tanks in a module")
 
     planning_start_time = min(p.index for p in environment.periods)
     planning_end_time = max(p.index for p in environment.periods)
-    assert (
-        len(set(p.index for p in environment.periods))
-        == planning_end_time - planning_start_time + 1
-    )
+    assert len(set(p.index for p in environment.periods)) == planning_end_time - planning_start_time + 1
 
-    initial_biomass = sum(tank.initial_weight for tank in module_tanks)
-    initial_tanks = sum(1 if tank.initial_use else 0 for tank in module_tanks)
-    print(
-        [
-            f"Initial deploy period {tank.index} {tank.initial_deploy_period}"
-            for tank in module_tanks
-        ]
-    )
+    for tank in environment.modules[module_idx].tanks:
+        print(
+            "TANK initial deploy ",
+            tank.initial_deploy_period,
+            "initial use",
+            tank.initial_use,
+            "initial weight",
+            tank.initial_weight,
+        )
 
-    min_initial_age = min(
-        planning_start_time - tank.initial_deploy_period for tank in module_tanks
-    )
-    max_initial_age = max(
-        planning_start_time - tank.initial_deploy_period for tank in module_tanks
-    )
+    initial_tanks_in_use = [tank for tank in module_tanks if tank.initial_use and tank.initial_weight >= 0.01]
+    print("Initially used tanks", [t.index for t in initial_tanks_in_use])
 
-    assert all(
-        planning_start_time - tank.initial_deploy_period > 0 for tank in module_tanks
-    )
+    initial_biomass = sum(tank.initial_weight for tank in initial_tanks_in_use)
+    initial_tanks_cleaning = [tank for tank in module_tanks if tank.initial_use and tank.initial_weight < 0.01]
+
+    print([f"Initial deploy period {tank.index} {tank.initial_deploy_period}" for tank in initial_tanks_in_use])
+
+    min_initial_age = min(planning_start_time - tank.initial_deploy_period for tank in initial_tanks_in_use)
+
+    max_initial_age = max(planning_start_time - tank.initial_deploy_period for tank in initial_tanks_in_use)
+
+    assert all(planning_start_time - tank.initial_deploy_period > 0 for tank in initial_tanks_in_use)
+    if min_initial_age != max_initial_age:
+        print("Warning: initial tank deploy period", [tank.initial_deploy_period for tank in initial_tanks_in_use])
     assert min_initial_age == max_initial_age
 
     initial_age = min_initial_age
@@ -71,9 +72,7 @@ def solve_dp(
     # Compute problem parameters in algorithm-specific format for DP heuristic.
     #
 
-    avg_tank_volume = sum(1.0 / t.inverse_volume for t in module_tanks) / len(
-        module_tanks
-    )
+    avg_tank_volume = sum(1.0 / t.inverse_volume for t in module_tanks) / len(module_tanks)
 
     period_production_duals = {}
     for year, price in yearly_production_duals.items():
@@ -83,9 +82,9 @@ def solve_dp(
                     assert period.index not in period_production_duals
                     period_production_duals[period.index] = price
 
-    assert sum(period_production_duals.values()) < 1e-5
-    assert sum(yearly_production_duals.values()) < 1e-5
-    assert sum(period_biomass_duals.values()) < 1e-5
+    # assert sum(period_production_duals.values()) < 1e-5
+    # assert sum(yearly_production_duals.values()) < 1e-5
+    # assert sum(period_biomass_duals.values()) < 1e-5
 
     # A map from deploy period and age to price,
     # where the price is the integral of the probability distribution of
@@ -139,24 +138,19 @@ def solve_dp(
     }
 
     biomass_costs_feed = {
-        dep_p.index: {
-            p.index: dep_p.periods_after_deploy_data[p.index].feed_cost
-            for p in dep_p.periods_after_deploy
-        }
+        dep_p.index: {p.index: dep_p.periods_after_deploy_data[p.index].feed_cost for p in dep_p.periods_after_deploy}
         for dep_p in environment.release_periods
     }
 
     transfer_periods = {
-        dep_p.index: {p.index: True for p in dep_p.transfer_periods}
-        for dep_p in environment.release_periods
+        dep_p.index: {p.index: True for p in dep_p.transfer_periods} for dep_p in environment.release_periods
     }
 
     loss_factor = 1.0 - environment.parameters.monthly_loss
 
     growth_factors = {
         dep_p.index: {
-            p.index: loss_factor
-            * dep_p.periods_after_deploy_data[p.index].growth_factor
+            p.index: loss_factor * dep_p.periods_after_deploy_data[p.index].growth_factor
             for p in dep_p.periods_after_deploy
         }
         for dep_p in environment.release_periods
@@ -164,8 +158,7 @@ def solve_dp(
 
     transfer_growth_factors = {
         dep_p.index: {
-            p.index: loss_factor
-            * dep_p.periods_after_deploy_data[p.index].transferred_growth_factor
+            p.index: loss_factor * dep_p.periods_after_deploy_data[p.index].transferred_growth_factor
             for p in dep_p.periods_after_deploy
         }
         for dep_p in environment.release_periods
@@ -175,8 +168,7 @@ def solve_dp(
         dep_p.index: {
             p.index: prod(
                 (
-                    loss_factor
-                    * dep_p.periods_after_deploy_data[prev_p.index].growth_factor
+                    loss_factor * dep_p.periods_after_deploy_data[prev_p.index].growth_factor
                     for prev_p in dep_p.periods_after_deploy
                     if prev_p.index < p.index
                 )
@@ -190,14 +182,11 @@ def solve_dp(
         dep_p.index: {
             p.index: min(
                 (
-                    dep_p.periods_after_deploy_data[
-                        prev_p.index
-                    ].transferred_growth_factor
+                    dep_p.periods_after_deploy_data[prev_p.index].transferred_growth_factor
                     / dep_p.periods_after_deploy_data[prev_p.index].growth_factor
                     for prev_p in dep_p.periods_after_deploy
                     if prev_p.index < p.index
-                    if p.index
-                    >= min((x.index for x in dep_p.transfer_periods), default=-1)
+                    if p.index >= min((x.index for x in dep_p.transfer_periods), default=-1)
                 ),
                 default=1.0,
             )
@@ -221,9 +210,7 @@ def solve_dp(
                 f"POSTSMOLT p={post_smolt_sell_price[dep_p.index][p.index]}"
                 if p in dep_p.postsmolt_extract_periods
                 else "",
-                f"HARVEST  p={harvest_sell_price[dep_p.index][p.index]}"
-                if p in dep_p.harvest_periods
-                else "",
+                f"HARVEST  p={harvest_sell_price[dep_p.index][p.index]}" if p in dep_p.harvest_periods else "",
                 "TRANSFER" if p in dep_p.transfer_periods else "",
             )
 
@@ -243,7 +230,8 @@ def solve_dp(
         "planning_start_time": planning_start_time,
         "planning_end_time": planning_end_time,
         "initial_biomass": initial_biomass,
-        "initial_tanks": initial_tanks,
+        "initial_tanks_in_use": len(initial_tanks_in_use),
+        "initial_tanks_cleaning": len(initial_tanks_cleaning),
         "initial_age": initial_age,
         "smolt_deploy_price": environment.parameters.smolt_price,
         "max_deploy": environment.parameters.max_deploy_smolt,
