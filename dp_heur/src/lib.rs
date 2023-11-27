@@ -82,8 +82,6 @@ struct SolutionState {
     deploy_period: i32,
     period: u32,
     biomass: f32,
-    transferred: f32,
-    harvested: f32,
     num_tanks: u32,
     num_tanks_cleaning: u32,
 }
@@ -223,7 +221,7 @@ fn foreach_successor_state(
     problem: &Problem,
     prev_time: usize,
     prev_state: &ModuleState,
-    mut f: impl FnMut(f32, Action, ModuleState),
+    mut f: impl FnMut(f32, ModuleState),
 ) {
     let deploy_time = prev_time - prev_state.deploy_age;
     let next_time = prev_time + 1;
@@ -231,10 +229,10 @@ fn foreach_successor_state(
         // We can stay empty ...
         f(
             0.0,
-            Action {
-                harvest: 0.0,
-                transfer: 0.0,
-            },
+            // Action {
+            //     harvest: 0.0,
+            //     transfer: 0.0,
+            // },
             *prev_state,
         );
 
@@ -268,10 +266,10 @@ fn foreach_successor_state(
                     let cost = next_biomass * problem.smolt_deploy_price;
                     f(
                         cost,
-                        Action {
-                            harvest: 0.0,
-                            transfer: 0.0,
-                        },
+                        // Action {
+                        //     harvest: 0.0,
+                        //     transfer: 0.0,
+                        // },
                         new_state,
                     );
                 }
@@ -306,10 +304,10 @@ fn foreach_successor_state(
 
             f(
                 prev_cost,
-                Action {
-                    harvest: 0.0,
-                    transfer: 0.0,
-                },
+                // Action {
+                //     harvest: 0.0,
+                //     transfer: 0.0,
+                // },
                 ModuleState {
                     deploy_age: prev_state.deploy_age + 1,
                     biomass: round_biomass_level(
@@ -365,10 +363,10 @@ fn foreach_successor_state(
 
                 f(
                     prev_cost,
-                    Action {
-                        harvest: 0.0,
-                        transfer: transferred_weight,
-                    },
+                    // Action {
+                    //     harvest: 0.0,
+                    //     transfer: transferred_weight,
+                    // },
                     ModuleState {
                         deploy_age: prev_state.deploy_age + 1,
                         biomass: round_biomass_level(
@@ -459,10 +457,10 @@ fn foreach_successor_state(
 
                         f(
                             cost,
-                            Action {
-                                harvest: harvested_weight,
-                                transfer: 0.0,
-                            },
+                            // Action {
+                            //     harvest: harvested_weight,
+                            //     transfer: 0.0,
+                            // },
                             next_state,
                         );
                     }
@@ -478,32 +476,6 @@ fn solve_module(problem: &Problem) -> Solution {
         * problem.max_module_use_length
         * problem.num_tanks
         + 1;
-    let n_time_steps = problem.planning_end_time - problem.planning_start_time + 1;
-    debug!(
-        "solving dp_heuristic with {} states in {} time periods",
-        n_states_per_time, n_time_steps,
-    );
-
-    const UNREACHABLE_NODE: i32 = -1;
-    const ROOT_NODE: i32 = -2;
-
-    let mut state_costs = vec![f32::INFINITY; n_states_per_time];
-    let mut state_nodes: Vec<i32> = vec![UNREACHABLE_NODE; n_states_per_time];
-
-    let mut next_state_costs = vec![f32::INFINITY; n_states_per_time];
-    let mut next_state_nodes: Vec<i32> = vec![UNREACHABLE_NODE; n_states_per_time];
-
-    let mut reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
-    let mut next_reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
-
-    struct Node {
-        prev_state: u32,
-        prev_node: i32,
-        action: Action,
-    }
-
-    let mut nodes: Vec<Node> = Vec::new();
-    nodes.reserve(n_states_per_time * n_time_steps / 4);
 
     let (initial_state, first_time) = if problem.initial_tanks_in_use > 0 {
         let state = ModuleState {
@@ -532,16 +504,69 @@ fn solve_module(problem: &Problem) -> Solution {
 
     trace!("Initial state {:?}", initial_state);
 
+    let n_time_steps = problem.planning_end_time - first_time + 1;
+    debug!(
+        "solving dp_heuristic with {} states in {} time periods",
+        n_states_per_time, n_time_steps,
+    );
+
+    const UNREACHABLE_NODE: i32 = -1;
+    const ROOT_NODE: i32 = -2;
+
+    #[derive(Clone, Copy)]
+    struct MyNode {
+        cost: f32,
+        prev_state: i32,
+    }
+
+    let mut all_nodes = vec![
+        MyNode {
+            cost: f32::INFINITY,
+            prev_state: UNREACHABLE_NODE
+        };
+        n_states_per_time * n_time_steps
+    ];
+
+    // let mut state_costs = vec![f32::INFINITY; n_states_per_time];
+    // let mut state_nodes: Vec<i32> = vec![UNREACHABLE_NODE; n_states_per_time];
+
+    // let mut next_state_costs = vec![f32::INFINITY; n_states_per_time];
+    // let mut next_state_nodes: Vec<i32> = vec![UNREACHABLE_NODE; n_states_per_time];
+
+    let mut reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
+    let mut next_reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
+
+    // struct Node {
+    //     prev_state: u32,
+    //     prev_node: i32,
+    //     // action: Action,
+    // }
+
+    // let mut nodes: Vec<Node> = Vec::new();
+    // nodes.reserve(n_states_per_time * n_time_steps / 4);
+
     let initial_state_idx = state_to_idx(&initial_state, problem);
-    state_costs[initial_state_idx] = 0.0;
-    state_nodes[initial_state_idx] = ROOT_NODE;
+    // state_costs[initial_state_idx] = 0.0;
+    // state_nodes[initial_state_idx] = ROOT_NODE;
+
+    all_nodes[initial_state_idx] = MyNode {
+        cost: 0.0,
+        prev_state: ROOT_NODE,
+    };
+
     reachable_states.push(initial_state_idx as u32);
 
     let mut n_states_total = 0;
     let mut n_states_processed = 0;
     let mut n_edges = 0;
 
-    for prev_time in (first_time)..=problem.planning_end_time {
+    for prev_time in (first_time)..problem.planning_end_time {
+        let (before, after) =
+            all_nodes.split_at_mut((prev_time + 1 - first_time) * n_states_per_time);
+        let prev_time_nodes = &before[((prev_time - first_time) * n_states_per_time)
+            ..((prev_time + 1 - first_time) * n_states_per_time)];
+        let next_time_nodes = &mut after[0..n_states_per_time];
+
         for state_idx in reachable_states.iter() {
             // for state_idx in 0..n_states_per_time {
             let prev_state_idx = *state_idx as usize;
@@ -550,53 +575,32 @@ fn solve_module(problem: &Problem) -> Solution {
             assert!(prev_state_idx == state_to_idx(&prev_state, problem));
 
             n_states_total += 1;
-
-            assert!(!state_costs[prev_state_idx].is_infinite());
-
-            // if state_costs[prev_state_idx].is_infinite() {
-            //     trace!("State unreachable t={} {:?}", prev_time, prev_state);
-            //     // Unreachable state.
-            //     continue;
-            // }
-
+            assert!(!prev_time_nodes[prev_state_idx].cost.is_infinite());
             n_states_processed += 1;
 
             foreach_successor_state(
                 problem,
                 prev_time,
                 &prev_state,
-                |cost, action, next: ModuleState| {
+                |cost, next: ModuleState| {
                     n_edges += 1;
                     let next_state_idx = state_to_idx(&next, problem);
-                    let total_cost = state_costs[prev_state_idx] + cost;
-                    // println!("  next({}) {:?}", next_state_idx, next);
+                    let total_cost = prev_time_nodes[prev_state_idx].cost + cost;
 
-                    if next_state_costs[next_state_idx] > total_cost {
-                        if next_state_costs[next_state_idx].is_infinite() {
+                    if next_time_nodes[next_state_idx].cost > total_cost {
+                        if next_time_nodes[next_state_idx].cost.is_infinite() {
                             next_reachable_states.push(next_state_idx as u32);
                         }
 
-                        let new_node_idx = nodes.len() as i32;
-                        let prev_node = state_nodes[prev_state_idx];
-                        assert!(prev_node >= 0 || prev_node == ROOT_NODE);
-                        // println!("t={} nodes {}", prev_time, nodes.len());
-                        nodes.push(Node {
-                            prev_state: state_to_idx(&prev_state, problem) as u32,
-                            prev_node: prev_node as i32,
-                            action,
-                        });
-                        next_state_costs[next_state_idx] = total_cost;
-                        next_state_nodes[next_state_idx] = new_node_idx;
+                        next_time_nodes[next_state_idx].cost = total_cost;
+                        next_time_nodes[next_state_idx].prev_state =
+                            state_to_idx(&prev_state, problem) as i32;
                     }
                 },
             );
         }
 
-        std::mem::swap(&mut state_costs, &mut next_state_costs);
-        std::mem::swap(&mut state_nodes, &mut next_state_nodes);
         std::mem::swap(&mut reachable_states, &mut next_reachable_states);
-        next_state_costs.fill(f32::INFINITY);
-        next_state_nodes.fill(UNREACHABLE_NODE);
         next_reachable_states.clear();
     }
 
@@ -610,40 +614,41 @@ fn solve_module(problem: &Problem) -> Solution {
 
     // Find the best final state and trace back to create plan
 
-    let best_state_idx = state_costs
+    let last_time_nodes = &all_nodes[(problem.planning_end_time - first_time) * n_states_per_time
+        ..(problem.planning_end_time + 1 - first_time) * n_states_per_time];
+
+    let best_state_idx = last_time_nodes
         .iter()
         .enumerate()
-        .min_by_key(|(_i, x)| OrderedFloat(**x))
+        .min_by_key(|(_i, x)| OrderedFloat(x.cost))
         .unwrap()
         .0;
 
-    let objective = state_costs[best_state_idx];
-    let mut node = &nodes[state_nodes[best_state_idx] as usize];
-    let mut states: Vec<(usize, Action, usize)> =
-        vec![(problem.planning_end_time, node.action, best_state_idx)];
+    let mut current_node = &last_time_nodes[best_state_idx];
+    let objective = current_node.cost;
+    let mut states: Vec<(usize, usize)> = vec![(problem.planning_end_time, best_state_idx)];
     let mut t = problem.planning_end_time;
 
-    while node.prev_node >= 0 {
+    while current_node.prev_state >= 0 {
         t -= 1;
-        node = &nodes[node.prev_node as usize];
-        states.push((t, node.action, node.prev_state as usize));
+        states.push((t, current_node.prev_state as usize));
+
+        let time_nodes = &all_nodes
+            [(t - first_time) * n_states_per_time..(t + 1 - first_time) * n_states_per_time];
+
+        current_node = &time_nodes[current_node.prev_state as usize];
     }
 
     assert!(t == first_time);
     states.reverse();
 
     println!(
-        "total number of nodes: {}  (initial allocation {})",
-        nodes.len(),
-        n_states_per_time * n_time_steps / 4
-    );
-    println!(
         "states (horison: {}-{}): {:?}",
         problem.planning_start_time, problem.planning_end_time, states
     );
 
     let mut output = Vec::new();
-    for (t, action, state_idx) in states {
+    for (t, state_idx) in states {
         let state = idx_to_state(state_idx, problem);
         let biomass = if state.tanks_in_use == 0 {
             0.0
@@ -676,8 +681,6 @@ fn solve_module(problem: &Problem) -> Solution {
                 -1
             },
             period: t as u32,
-            harvested: action.harvest,
-            transferred: action.transfer,
             biomass,
             num_tanks: state.tanks_in_use as u32,
             num_tanks_cleaning: state.tanks_being_cleaned as u32,
