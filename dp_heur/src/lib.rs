@@ -69,6 +69,8 @@ struct Problem {
     max_module_use_length: usize,
 
     logarithmic_bins: bool,
+    minimum_growth_factor: f32,
+    maximum_growth_factor: f32,
 }
 
 #[derive(serde::Serialize)]
@@ -165,8 +167,12 @@ fn idx_to_state(idx: usize, problem: &Problem) -> ModuleState {
 }
 
 fn state_biomass_limits(problem: &Problem, time: usize, age: usize, tanks: usize) -> (f32, f32) {
-    let maximum_total_biomass = problem.max_biomass_per_tank * tanks as f32;
-    let minimum_total_biomass = problem.min_deploy.min(maximum_total_biomass);
+    let minimum_development = problem.min_deploy * problem.minimum_growth_factor.powi(age as i32);
+    let maximum_development = problem.max_deploy * problem.maximum_growth_factor.powi(age as i32);
+
+    let maximum_total_biomass = (problem.max_biomass_per_tank * tanks as f32).min(maximum_development);
+    let minimum_total_biomass = (problem.min_deploy.max(minimum_development)).min(maximum_total_biomass);
+
     (minimum_total_biomass, maximum_total_biomass)
 }
 
@@ -252,6 +258,9 @@ fn foreach_successor_state(
                     };
 
                     let next_biomass = calc_biomass(problem, next_time, &new_state);
+                    if next_biomass > problem.max_deploy {
+                        break;
+                    }
 
                     // NOTE: we don't put the costs for the tank and biomass
                     //       on this edge, we put it on the outgoing edge for the

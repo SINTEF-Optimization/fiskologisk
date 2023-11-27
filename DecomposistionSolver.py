@@ -49,7 +49,7 @@ class SubProblem:
         self.use_dp_heuristic = use_dp_heuristic
         self.polish_dp_with_mip = False
         self.verify_dp_solution = False
-        self.bins = 1000
+        self.bins = 250
 
     def build_model(self) -> None:
         """Builds the MIP model for the column generation subproblem"""

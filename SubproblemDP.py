@@ -151,10 +151,31 @@ def solve_dp(
 
     max_biomass_per_tank = environment.parameters.max_tank_density * avg_tank_volume
 
+    max_module_use_length = max((
+        p.index - dep_p.index
+        for dep_p in environment.release_periods
+        for p in dep_p.periods_after_deploy
+    )) + 1
+
+    minimum_growth_factor = min((
+        loss_factor * dep_p.periods_after_deploy_data[p.index].growth_factor
+        for dep_p in environment.release_periods
+        for p in dep_p.periods_after_deploy
+    ))
+
+    maximum_growth_factor = max((
+        loss_factor * dep_p.periods_after_deploy_data[p.index].growth_factor
+        for dep_p in environment.release_periods
+        for p in dep_p.periods_after_deploy
+    ))
+
+    print("MIN GROWTH",minimum_growth_factor)
+    print("MAX GROWTH", maximum_growth_factor)
+
     problem_json = {
         # PARAMETERS
         "volume_bins": bins,
-        "max_module_use_length": 25,
+        "max_module_use_length": max_module_use_length,
         "num_tanks": len(module_tanks),
         "planning_start_time": planning_start_time,
         "planning_end_time": planning_end_time,
@@ -167,10 +188,12 @@ def solve_dp(
         "min_deploy": environment.parameters.min_deploy_smolt,
         "tank_const_cost": environment.parameters.min_tank_cost,
         "max_biomass_per_tank": max_biomass_per_tank,
+        "minimum_growth_factor": minimum_growth_factor,
+        "maximum_growth_factor": maximum_growth_factor,
 
         # TABLES INDEXED ON BY TUPLE (DEPLOY_TIME,AGE)
         # TODO: clean this up a bit by putting all the tables into `deploy_period_data`.
-        
+
         "post_smolt_sell_price": post_smolt_sell_price,
         "harvest_sell_price": harvest_sell_price,
         "biomass_costs": biomass_costs,
