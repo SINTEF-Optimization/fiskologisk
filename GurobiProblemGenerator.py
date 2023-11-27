@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import List, Tuple
 import gurobipy as gp
 from gurobipy import GRB
 from enum import Enum
@@ -1024,9 +1025,55 @@ class GurobiProblemGenerator(SolutionProvider):
         for key, val in column.salmon_transferred_values.items():
             constraints.append(model.addConstr(self.salmon_transferred_variables[key] == val, name = "lock_salmon_transferred_" + str(key)))
 
+    def lock_production_plan_by_num_tanks(
+        self, model: gp.Model, module: Module, periods_num_tanks: List[Tuple[int, int]]
+    ) -> List[gp.Constr]:
+        """Using `periods_num_tanks` as a map from period number to number of tanks in use,
+        lock these number of tanks in the `model`. If the number of tanks is not zero and
+        the next period in the list has a higher number of tanks than the current one,
+        the number for the next period is selected. This accounts for a difference in modeling
+        tanks in use in the DP and MIP models -- in DP, the additional tanks used for transferring
+        are not in use in the transfer period, while in the MIP, they are.
+        Returns the corresponding contraint references.
+        """
+
+        period_map = {p.index: p for p in self.problem_generator.environment.periods}
+
+        # def num_active_tanks(period_tanks):
+        #     """If transferring to a larger number of tanks in the next period,
+        #     use the number of tanks from the next period."""
+
+        constraints = []
+        for i in range(len(periods_num_tanks)):
+            p, n = periods_num_tanks[i]
+            next_n = periods_num_tanks[i + 1][1] if i + 1 < len(periods_num_tanks) else -1
+            n = next_n if n > 0 and n < next_n else n
+            constraints.append(self.lock_num_tanks(model, period_map[p], module, n))
+
         return constraints
 
-    def lock_num_tanks(self, model: gp.Model, period :Period, module :Module, num_tanks :int) -> gp.Constr:
+    def lock_production_plan_by_nontransfer_num_tanks(
+        self, model: gp.Model, module: Module, periods_num_tanks: List[Tuple[int, int]]
+    ) -> List[gp.Constr]:
+        """Do the same as to `lock_production_plan_by_num_tanks`, but constain the number of tanks only
+        is is zero or if it is less than the period before. This relaxes the choice of when to do transfers.
+        Returns the corresponding contraint references."""
+
+        period_map = {p.index: p for p in self.problem_generator.environment.periods}
+
+        constraints = []
+        prev_n = -1
+        for i in range(len(periods_num_tanks)):
+            p, n = periods_num_tanks[i]
+            next_n = periods_num_tanks[i + 1][1] if i + 1 < len(periods_num_tanks) else -1
+            n = next_n if n > 0 and n < next_n else n
+            if n < prev_n or (prev_n <= 0 and n > prev_n) and p in period_map:
+                constraints.append(self.lock_num_tanks(model, period_map[p], module, n))
+            prev_n = n
+
+        return constraints
+
+    def lock_num_tanks(self, model: gp.Model, period: Period, module: Module, num_tanks: int) -> gp.Constr:
         return model.addConstr(
             sum(self.contains_salmon_variable(t,period) 
                 for t in module.tanks) == num_tanks, 

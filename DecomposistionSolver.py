@@ -48,6 +48,7 @@ class SubProblem:
 
         self.use_dp_heuristic = use_dp_heuristic
         self.polish_dp_with_mip = False
+        self.verify_dp_solution = False
         self.bins = 1000
 
     def build_model(self) -> None:
@@ -81,28 +82,9 @@ class SubProblem:
             minimize the weight of the extracted salmon. Combinations will also occur, when one deploy period production is minimized and the others are maximized.
         """
 
-        if iteration == 1:
-            self.problem_generator.set_subproblem_objective(self.model, None, None)
-            self.model.write(f"tmp/initial_sp{self.module_index}.lp")
-
-        print("SUBPROBLEM ", self.module_index)
-        mxx = self.problem_generator.environment.modules[self.module_index]
-
-        print(
-            [
-                f"{tank.index}: tr from {[t.index for t in tank.transferable_from]} tr to {[t.index for t in tank.transferable_to]}"
-                for tank in mxx.tanks
-            ]
-        )
-        print("period biomass duals   ", period_biomass_duals)
-        print("yearly production duals", yearly_production_duals)
         self.problem_generator.set_subproblem_objective(self.model, period_biomass_duals, yearly_production_duals)
-        self.model.write(f"tmp/sp{self.module_index}_{iteration}.lp")
-        # self.model.optimize()
-        # self.problem_generator.drop_positive_solution(self.model)
 
         profit_columns = []
-        period_map = {p.index: p for p in self.problem_generator.environment.periods}
         if self.use_dp_heuristic:
             solution = solve_dp(
                 self.problem_generator.environment,
@@ -111,121 +93,55 @@ class SubProblem:
                 yearly_production_duals,
                 self.bins
             )
-            # sys.exit(0)
+
             if solution is not None:
-                m = self.problem_generator.environment.modules[self.module_index]
-
-                # def num_active_tanks(period_tanks):
-                #     """If transferring to a larger number of tanks in the next period,
-                #     use the number of tanks from the next period."""
-
-                #     for i in range(len(period_tanks)):
-                #         p, n = period_tanks[i]
-                #         next_n = (
-                #             period_tanks[i + 1][1] if i + 1 < len(period_tanks) else -1
-                #         )
-                #         n = next_n if n > 0 and n < next_n else n
-                #         yield p, n
-
-                # constraints = [
-                #     self.problem_generator.lock_num_tanks(
-                #         self.model, period_map[p], m, n
-                #     )
-                #     for p, n in num_active_tanks(solution.period_tanks)
-                # ]
-
-                constraints = []
-                ntanks = solution.period_tanks
-                prev_n = -1
-                for i in range(len(ntanks)):
-                    p, n = ntanks[i]
-                    next_n = ntanks[i + 1][1] if i + 1 < len(ntanks) else -1
-                    n = next_n if n > 0 and n < next_n else n
-                    if n < prev_n or (prev_n <= 0 and n > prev_n) and p in period_map:
-                        constraints.append(self.problem_generator.lock_num_tanks(self.model, period_map[p], m, n))
-                    prev_n = n
+                module = self.problem_generator.environment.modules[self.module_index]
+                self.problem_generator.lock_production_plan_by_nontransfer_num_tanks(
+                    self.model, module, solution.period_tanks
+                )
 
                 self.model.optimize()
                 relaxdp_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
 
                 if self.model.ObjVal > convex_dual:
                     margin = 1e-4 * max(abs(self.model.PoolObjVal), abs(convex_dual))
-                    cost_gap = self.model.PoolObjVal - convex_dual
-                    print(
-                        "DP SOLUTION COST GAP",
-                        cost_gap,
-                        self.model.PoolObjVal,
-                        convex_dual,
-                    )
-
-                    print("SOLUTION COST GAP", cost_gap, self.model.PoolObjVal, convex_dual)
-                    if cost_gap > margin:
+                    if self.model.PoolObjVal - convex_dual > margin:
                         profit_columns.append(
                             self.problem_generator.get_master_column(self.module_index, relaxdp_obj_value, False)
                         )
-                        added_column = True
 
                 self.problem_generator.remove_constraints(self.model, constraints)
 
-                # self.model.optimize()
-                # mip_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
-
-                # # self.problem_generator.drop_positive_solution(self.model)
-                # print(f"relax_dp is suboptimal by {100.0 * (mip_obj_value / relaxdp_obj_value - 1.0):.2f}%")
-                # raise Exception()
-
-                # report_suboptimality(relaxdp_obj_value, mip_obj_value)
+                if self.verify_dp_solution:
+                    self.model.optimize()
+                    mip_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
+                    # print(f"relax_dp is suboptimal by {100.0 * (mip_obj_value / relaxdp_obj_value - 1.0):.2f}%")
+                    if report_suboptimality is not None:
+                        report_suboptimality(relaxdp_obj_value, mip_obj_value)
 
 
         polish = self.polish_dp_with_mip and len(profit_columns) == 0
         if not self.use_dp_heuristic or polish:
-            # self.model.write("tmp/x.lp")
+
             self.model.Params.Cutoff = convex_dual
             self.model.optimize()
             self.model.Params.Cutoff = "default"
-            # self.problem_generator.drop_positive_solution(self.model)
-            # self.model.computeIIS()
-            # self.model.write("iis.ilp")
 
             # Solve and look for columns with positive cost from the 10 last feasible solutions found by the solver
             nmb_sol = min(10, self.model.SolCount)
 
-            print("GETTING SOLUTIONS for", self.module_index)
-            print("convex dual", convex_dual)
-            print("Optimal value: ", self.model.ObjVal)
-
             for sol_idx in range(nmb_sol):
                 self.model.params.SolutionNumber = sol_idx
-                print("PoolObjVal", self.model.PoolObjVal)
                 if self.model.PoolObjVal > convex_dual:
                     margin = 1e-4 * max(abs(self.model.PoolObjVal), abs(convex_dual))
-                    cost_gap = self.model.PoolObjVal - convex_dual
-                    print(
-                        "SOLUTION COST GAP",
-                        cost_gap,
-                        self.model.PoolObjVal,
-                        convex_dual,
-                    )
-                    if cost_gap > margin:
+                    if self.model.PoolObjVal - convex_dual > margin:
                         # Solution with positive cost found, create column to be added to Master Problem
                         obj_value = self.problem_generator.calculate_core_objective(self.module_index)
                         profit_columns.append(
                             self.problem_generator.get_master_column(self.module_index, obj_value, False)
                         )
-                    else:
-                        print(
-                            "ALMOST positive cost column",
-                            sol_idx,
-                            self.model.PoolObjVal,
-                        )
-            self.model.params.SolutionNumber = 0
 
-        # x_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
-        # print("ZEROSHADOW", x_obj_value)
-        # self.problem_generator.set_subproblem_objective(self.model, None, None)
-        # self.model.write(f"sp{self.module_index}_{iteration}_zero.lp")
-        # self.model.optimize()
-        # print("   X ", self.model.ObjVal)
+            self.model.params.SolutionNumber = 0
 
         # For each new column generated by the solver solutions, add extra columns with the same binary values, and with biomass maximized or minimized for the different deploy periods
         biomass_columns = []
@@ -416,9 +332,10 @@ class DecomposistionSolver:
         for msg in log_objectives:
             print(msg)
 
-        print("Suboptimality of DP approach:")
-        for mod, dp_obj, mip_obj in suboptimality:
-            print(f" - module{mod} dp={dp_obj} mip={mip_obj} suboptimality={100.0 * ( mip_obj / dp_obj  - 1.0 ):.2f}%")
+        if len(suboptimality) > 0:
+            print("Suboptimality of DP approach:")
+            for mod, dp_obj, mip_obj in suboptimality:
+                print(f" - module{mod} dp={dp_obj} mip={mip_obj} suboptimality={100.0 * ( mip_obj / dp_obj  - 1.0 ):.2f}%")
 
     def create_initial_columns(self) -> list[MasterColumn]:
         """Generates the initial columns to be added to the Master Problem.
