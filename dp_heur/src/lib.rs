@@ -100,8 +100,8 @@ fn state_to_idx(next: &ModuleState, problem: &Problem) -> usize {
     // State idxs are stored as follows:
     //  * state 0 = tanks empty
     //  * state i>0 = i-1 is converted from (age,biomass,tanks,cleaning) as follows:
-    //    biomass + (biomass_levels)*age 
-    //            + (biomass_levels*max_use_length)*tanks 
+    //    biomass + (biomass_levels)*age
+    //            + (biomass_levels*max_use_length)*tanks
     //            + (biomass_levels*max_use_length*num_tanks)*cleaning
 
     assert!(next.biomass < problem.volume_bins);
@@ -493,6 +493,9 @@ fn solve_module(problem: &Problem) -> Solution {
     let mut next_state_costs = vec![f32::INFINITY; n_states_per_time];
     let mut next_state_nodes: Vec<i32> = vec![UNREACHABLE_NODE; n_states_per_time];
 
+    let mut reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
+    let mut next_reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
+
     struct Node {
         prev_state: u32,
         prev_node: i32,
@@ -532,23 +535,30 @@ fn solve_module(problem: &Problem) -> Solution {
     let initial_state_idx = state_to_idx(&initial_state, problem);
     state_costs[initial_state_idx] = 0.0;
     state_nodes[initial_state_idx] = ROOT_NODE;
+    reachable_states.push(initial_state_idx as u32);
 
     let mut n_states_total = 0;
     let mut n_states_processed = 0;
     let mut n_edges = 0;
 
     for prev_time in (first_time)..=problem.planning_end_time {
-        for state_idx in 0..n_states_per_time {
-            let prev_state = idx_to_state(state_idx, problem);
+        for state_idx in reachable_states.iter() {
+            // for state_idx in 0..n_states_per_time {
+            let prev_state_idx = *state_idx as usize;
+            let prev_state = idx_to_state(prev_state_idx, problem);
 
-            assert!(state_idx == state_to_idx(&prev_state, problem));
+            assert!(prev_state_idx == state_to_idx(&prev_state, problem));
 
             n_states_total += 1;
-            if state_costs[state_idx].is_infinite() {
-                trace!("State unreachable t={} {:?}", prev_time, prev_state);
-                // Unreachable state.
-                continue;
-            }
+
+            assert!(!state_costs[prev_state_idx].is_infinite());
+
+            // if state_costs[prev_state_idx].is_infinite() {
+            //     trace!("State unreachable t={} {:?}", prev_time, prev_state);
+            //     // Unreachable state.
+            //     continue;
+            // }
+
             n_states_processed += 1;
 
             foreach_successor_state(
@@ -558,12 +568,16 @@ fn solve_module(problem: &Problem) -> Solution {
                 |cost, action, next: ModuleState| {
                     n_edges += 1;
                     let next_state_idx = state_to_idx(&next, problem);
-                    let total_cost = state_costs[state_idx] + cost;
+                    let total_cost = state_costs[prev_state_idx] + cost;
                     // println!("  next({}) {:?}", next_state_idx, next);
 
                     if next_state_costs[next_state_idx] > total_cost {
+                        if next_state_costs[next_state_idx].is_infinite() {
+                            next_reachable_states.push(next_state_idx as u32);
+                        }
+
                         let new_node_idx = nodes.len() as i32;
-                        let prev_node = state_nodes[state_idx];
+                        let prev_node = state_nodes[prev_state_idx];
                         assert!(prev_node >= 0 || prev_node == ROOT_NODE);
                         // println!("t={} nodes {}", prev_time, nodes.len());
                         nodes.push(Node {
@@ -580,8 +594,10 @@ fn solve_module(problem: &Problem) -> Solution {
 
         std::mem::swap(&mut state_costs, &mut next_state_costs);
         std::mem::swap(&mut state_nodes, &mut next_state_nodes);
+        std::mem::swap(&mut reachable_states, &mut next_reachable_states);
         next_state_costs.fill(f32::INFINITY);
         next_state_nodes.fill(UNREACHABLE_NODE);
+        next_reachable_states.clear();
     }
 
     println!(
