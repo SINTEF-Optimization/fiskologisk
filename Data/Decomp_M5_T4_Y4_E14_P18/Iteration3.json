@@ -1,0 +1,126 @@
+{
+    "core_setup": "CoreProblem.json",
+    "iteration_setup": {
+        "current_iteration": 3,
+        "max_iteration": 3,
+        "unextended_planning_years": 4,
+        "input_file": "Iteration%N.json",
+        "solution_output_file": "M5_T4_Y4_I%N.json"
+    },
+    "initial_populations": [
+        {
+            "tank": 0,
+            "deploy_period": 20,
+            "weight": 56829.0,
+            "in_use": true
+        },
+        {
+            "tank": 1,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 2,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 3,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 4,
+            "deploy_period": 20,
+            "weight": 56829.0,
+            "in_use": true
+        },
+        {
+            "tank": 5,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 6,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 7,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 8,
+            "deploy_period": 18,
+            "weight": 130578.0,
+            "in_use": true
+        },
+        {
+            "tank": 9,
+            "in_use": true
+        },
+        {
+            "tank": 10,
+            "in_use": true
+        },
+        {
+            "tank": 11,
+            "in_use": true
+        },
+        {
+            "tank": 12,
+            "deploy_period": 20,
+            "weight": 56829.0,
+            "in_use": true
+        },
+        {
+            "tank": 13,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 14,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 15,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 16,
+            "deploy_period": 20,
+            "weight": 56829.0,
+            "in_use": true
+        },
+        {
+            "tank": 17,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 18,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        },
+        {
+            "tank": 19,
+            "deploy_period": 20,
+            "weight": 94820.0,
+            "in_use": true
+        }
+    ]
+}
