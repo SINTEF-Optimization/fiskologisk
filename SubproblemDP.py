@@ -20,6 +20,7 @@ def solve_dp(
     module_idx: int,
     period_biomass_duals: dict[int, float],
     yearly_production_duals: dict[int, float],
+    bins :int
 ) -> Optional[DPSolution]:
     #
     # Check some problem definition limits for the algorithm.
@@ -51,9 +52,9 @@ def solve_dp(
 
     print([f"Initial deploy period {tank.index} {tank.initial_deploy_period}" for tank in initial_tanks_in_use])
 
-    min_initial_age = min(planning_start_time - tank.initial_deploy_period for tank in initial_tanks_in_use)
+    min_initial_age = min((planning_start_time - tank.initial_deploy_period for tank in initial_tanks_in_use), default=0)
 
-    max_initial_age = max(planning_start_time - tank.initial_deploy_period for tank in initial_tanks_in_use)
+    max_initial_age = max((planning_start_time - tank.initial_deploy_period for tank in initial_tanks_in_use), default=0)
 
     assert all(planning_start_time - tank.initial_deploy_period > 0 for tank in initial_tanks_in_use)
     if min_initial_age != max_initial_age:
@@ -224,7 +225,7 @@ def solve_dp(
 
     problem_json = {
         # PARAMETERS
-        "volume_bins": 1000,
+        "volume_bins": bins,
         "max_module_use_length": 25,
         "num_tanks": len(module_tanks),
         "planning_start_time": planning_start_time,

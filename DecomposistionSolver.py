@@ -1,4 +1,5 @@
 import time
+import sys
 import gurobipy as gp
 from GurobiProblemGenerator import GurobiProblemGenerator
 from GurobiProblemGenerator import ObjectiveProfile
@@ -46,7 +47,8 @@ class SubProblem:
         self.print_level = drop_solution
 
         self.use_dp_heuristic = use_dp_heuristic
-        self.polish_dp_with_mip = True
+        self.polish_dp_with_mip = False
+        self.bins = 1000
 
     def build_model(self) -> None:
         """Builds the MIP model for the column generation subproblem"""
@@ -107,7 +109,9 @@ class SubProblem:
                 self.module_index,
                 period_biomass_duals,
                 yearly_production_duals,
+                self.bins
             )
+            # sys.exit(0)
             if solution is not None:
                 m = self.problem_generator.environment.modules[self.module_index]
 
@@ -137,7 +141,7 @@ class SubProblem:
                     p, n = ntanks[i]
                     next_n = ntanks[i + 1][1] if i + 1 < len(ntanks) else -1
                     n = next_n if n > 0 and n < next_n else n
-                    if n < prev_n or (prev_n <= 0 and n > prev_n):
+                    if n < prev_n or (prev_n <= 0 and n > prev_n) and p in period_map:
                         constraints.append(self.problem_generator.lock_num_tanks(self.model, period_map[p], m, n))
                     prev_n = n
 
@@ -145,33 +149,40 @@ class SubProblem:
                 relaxdp_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
 
                 if self.model.ObjVal > convex_dual:
-                    cost_gap = (self.model.PoolObjVal / convex_dual) - 1.0
-
+                    margin = 1e-4 * max(abs(self.model.PoolObjVal), abs(convex_dual))
+                    cost_gap = self.model.PoolObjVal - convex_dual
                     print(
                         "DP SOLUTION COST GAP",
                         cost_gap,
                         self.model.PoolObjVal,
                         convex_dual,
                     )
-                    if cost_gap > 1e-5:
+
+                    print("SOLUTION COST GAP", cost_gap, self.model.PoolObjVal, convex_dual)
+                    if cost_gap > margin:
                         profit_columns.append(
                             self.problem_generator.get_master_column(self.module_index, relaxdp_obj_value, False)
                         )
+                        added_column = True
 
                 self.problem_generator.remove_constraints(self.model, constraints)
 
-                self.model.optimize()
-                mip_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
+                # self.model.optimize()
+                # mip_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
 
-                # self.problem_generator.drop_positive_solution(self.model)
-                print(f"relax_dp is suboptimal by {100.0 * (mip_obj_value / relaxdp_obj_value - 1.0):.2f}%")
+                # # self.problem_generator.drop_positive_solution(self.model)
+                # print(f"relax_dp is suboptimal by {100.0 * (mip_obj_value / relaxdp_obj_value - 1.0):.2f}%")
+                # raise Exception()
 
-                report_suboptimality(relaxdp_obj_value, mip_obj_value)
+                # report_suboptimality(relaxdp_obj_value, mip_obj_value)
+
 
         polish = self.polish_dp_with_mip and len(profit_columns) == 0
         if not self.use_dp_heuristic or polish:
             # self.model.write("tmp/x.lp")
+            self.model.Params.Cutoff = convex_dual
             self.model.optimize()
+            self.model.Params.Cutoff = "default"
             # self.problem_generator.drop_positive_solution(self.model)
             # self.model.computeIIS()
             # self.model.write("iis.ilp")
@@ -187,14 +198,15 @@ class SubProblem:
                 self.model.params.SolutionNumber = sol_idx
                 print("PoolObjVal", self.model.PoolObjVal)
                 if self.model.PoolObjVal > convex_dual:
-                    cost_gap = (self.model.PoolObjVal / convex_dual) - 1.0
+                    margin = 1e-4 * max(abs(self.model.PoolObjVal), abs(convex_dual))
+                    cost_gap = self.model.PoolObjVal - convex_dual
                     print(
                         "SOLUTION COST GAP",
                         cost_gap,
                         self.model.PoolObjVal,
                         convex_dual,
                     )
-                    if cost_gap > 1e-5:
+                    if cost_gap > margin:
                         # Solution with positive cost found, create column to be added to Master Problem
                         obj_value = self.problem_generator.calculate_core_objective(self.module_index)
                         profit_columns.append(
@@ -383,6 +395,7 @@ class DecomposistionSolver:
             log_objectives.append("Objective solved relaxed master problem\t%s" % relaxed_objective)
             self.problem_generator.lock_binaries()
             t0 = time.time()
+            self.master_model.Params.MIPGap = 0.2 / 100.0
             self.master_model.optimize()
             log_times.append("MIP Master (sec)\t%s" % (time.time() - t0))
             mip_objective = self.master_model.ObjVal

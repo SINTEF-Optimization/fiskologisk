@@ -24,7 +24,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, use_decomposistion: bool, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str) -> None:
+def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, use_decomposistion: bool, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str, use_dp_heuristic :bool) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -39,7 +39,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
         sol_prov = gmpg
 
         decomp_solver = DecomposistionSolver(gmpg)
-        decomp_solver.build_model(use_dp_heuristic=True)
+        decomp_solver.build_model(use_dp_heuristic)
         decomp_solver.optimize()
     else:
         gpg = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
@@ -307,13 +307,15 @@ if __name__ == "__main__":
     use_decomposistion = False
     max_single_modules = 0
     fixed_values_file = ""
+    use_dp_heuristic = False
 
     opt_arguments = sys.argv[2:]
-    options = "d:f:m:o:s:t:"
-    long_options = ["Decomposition=", "Fixed=", "Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules="]
+    options = "d:f:m:o:s:t:h:"
+    long_options = ["Decomposition=", "Fixed=", "Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules=", "Heuristic="]
 
     try:
         arguments, values = getopt.getopt(opt_arguments, options, long_options)
+        print(arguments, values)
 
         for argument, value in arguments:
 
@@ -326,16 +328,21 @@ if __name__ == "__main__":
             elif argument in ("-t", "--Transfer"):
                 allow_transfer = parse_bool(value, True)
 
-            elif argument in ("-d" "--Decomposition"):
+            elif argument in ("-d", "--Decomposition"):
                 use_decomposistion = parse_bool(value, True)
 
-            elif argument in ("-m" "--Max_single_modules"):
+            elif argument in ("-m", "--Max_single_modules"):
                 max_single_modules = parse_int(value, 0)
 
-            elif argument in ("-f" "--Fixed"):
+            elif argument in ("-f", "--Fixed"):
                 fixed_values_file = value
 
-        run_iteration(file_path, objective, allow_transfer, use_decomposistion, add_symmetry_breaks, max_single_modules, fixed_values_file)
+            elif argument in ("-h", "--Heuristic"):
+                use_dp_heuristic = parse_bool(value, False)
+
+        print("USE DP HEURISTIC", use_dp_heuristic)
+
+        run_iteration(file_path, objective, allow_transfer, use_decomposistion, add_symmetry_breaks, max_single_modules, fixed_values_file, use_dp_heuristic)
 
     except getopt.error as err:
         print(str(err))

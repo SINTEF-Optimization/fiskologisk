@@ -14,3 +14,8 @@ log = "0.4.20"
 ordered-float = "4.1.1"
 serde_json = "1.0.107"
 serde = { version="1.0.189", features = ["derive"] }
+
+[profile.profiling]
+inherits = "release"
+debug = true
+

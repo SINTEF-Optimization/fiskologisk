@@ -90,26 +90,26 @@ pub struct Solution {
     states: Vec<SolutionState>,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum CostDescription {
-    Smolt {
-        price: f32,
-        weight: f32,
-        cost: f32,
-    },
-    Biomass {
-        price: f32,
-        weight: f32,
-        tank_cost: f32,
-        cost: f32,
-    },
-    Harvest {
-        price: f32,
-        weight: f32,
-        cost: f32,
-        post_smolt: bool,
-    },
-}
+// #[derive(Debug, Clone, Copy)]
+// enum CostDescription {
+//     Smolt {
+//         price: f32,
+//         weight: f32,
+//         cost: f32,
+//     },
+//     Biomass {
+//         price: f32,
+//         weight: f32,
+//         tank_cost: f32,
+//         cost: f32,
+//     },
+//     Harvest {
+//         price: f32,
+//         weight: f32,
+//         cost: f32,
+//         post_smolt: bool,
+//     },
+// }
 
 fn state_biomass_limits(problem: &Problem, time: usize, age: usize, tanks: usize) -> (f32, f32) {
     // if time < problem.planning_start_time {
@@ -232,7 +232,7 @@ fn foreach_successor_state(
     problem: &Problem,
     prev_time: usize,
     prev_state: &ModuleState,
-    mut f: impl FnMut(f32, Action, Vec<CostDescription>, ModuleState),
+    mut f: impl FnMut(f32, Action, ModuleState),
 ) {
     let deploy_time = prev_time - prev_state.deploy_age;
     let next_time = prev_time + 1;
@@ -244,7 +244,6 @@ fn foreach_successor_state(
                 harvest: 0.0,
                 transfer: 0.0,
             },
-            vec![],
             *prev_state,
         );
 
@@ -294,11 +293,6 @@ fn foreach_successor_state(
                             harvest: 0.0,
                             transfer: 0.0,
                         },
-                        vec![CostDescription::Smolt {
-                            weight: next_biomass,
-                            cost: cost,
-                            price: problem.smolt_deploy_price,
-                        }],
                         new_state,
                     );
                 }
@@ -337,12 +331,6 @@ fn foreach_successor_state(
                     harvest: 0.0,
                     transfer: 0.0,
                 },
-                vec![CostDescription::Biomass {
-                    weight: prev_biomass,
-                    tank_cost: prev_tank_cost,
-                    cost: prev_cost,
-                    price: fed_cost,
-                }],
                 ModuleState {
                     deploy_age: prev_state.deploy_age + 1,
                     biomass: round_biomass_level(
@@ -441,12 +429,6 @@ fn foreach_successor_state(
                         harvest: 0.0,
                         transfer: transferred_weight,
                     },
-                    vec![CostDescription::Biomass {
-                        weight: prev_biomass,
-                        price: fed_cost,
-                        tank_cost: prev_tank_cost,
-                        cost: prev_cost,
-                    }],
                     ModuleState {
                         deploy_age: prev_state.deploy_age + 1,
                         biomass: round_biomass_level(
@@ -554,34 +536,12 @@ fn foreach_successor_state(
                             unfed_weight * unfed_cost + fed_weight * fed_cost + prev_tank_cost
                                 - revenue;
 
-                        let cost_descr = vec![
-                            CostDescription::Biomass {
-                                weight: fed_weight,
-                                tank_cost: prev_tank_cost,
-                                price: fed_cost,
-                                cost: fed_cost * fed_weight,
-                            },
-                            CostDescription::Biomass {
-                                weight: unfed_weight,
-                                tank_cost: 0.0,
-                                price: unfed_cost,
-                                cost: unfed_weight * unfed_cost,
-                            },
-                            CostDescription::Harvest {
-                                price: revenue_per_weight,
-                                weight: harvested_weight,
-                                cost: -revenue,
-                                post_smolt: is_postsmolt,
-                            },
-                        ];
-
                         f(
                             cost,
                             Action {
                                 harvest: harvested_weight,
                                 transfer: 0.0,
                             },
-                            cost_descr,
                             next_state,
                         );
                     }
@@ -643,7 +603,6 @@ fn solve_module(problem: &Problem) -> Solution {
         prev_state: u32,
         prev_node: i32,
         action: Action,
-        cost_descr: Vec<CostDescription>,
     }
 
     let mut nodes: Vec<Node> = Vec::new();
@@ -685,17 +644,23 @@ fn solve_module(problem: &Problem) -> Solution {
     //  * state i>0 = i-1 is converted from (age,biomass,tanks) as follows:
     //    biomass + (biomass_levels)*age + (biomass_levels*max_use_length)*tanks
 
+    let mut n_states_total = 0;
+    let mut n_states_processed = 0;
+    let mut n_edges = 0;
+
     for prev_time in (first_time)..=problem.planning_end_time {
         for state_idx in 0..n_states_per_time {
             let prev_state = idx_to_state(state_idx, problem);
 
             assert!(state_idx == state_to_idx(&prev_state, problem));
 
+            n_states_total += 1;
             if state_costs[state_idx].is_infinite() {
                 trace!("State unreachable t={} {:?}", prev_time, prev_state);
                 // Unreachable state.
                 continue;
             }
+            n_states_processed += 1;
 
             let biomass = calc_biomass(problem, prev_time, &prev_state);
             // println!(
@@ -707,7 +672,8 @@ fn solve_module(problem: &Problem) -> Solution {
                 problem,
                 prev_time,
                 &prev_state,
-                |cost, action, cost_descr, next: ModuleState| {
+                |cost, action, next: ModuleState| {
+                    n_edges += 1;
                     let next_state_idx = state_to_idx(&next, problem);
                     let total_cost = state_costs[state_idx] + cost;
                     // println!("  next({}) {:?}", next_state_idx, next);
@@ -721,7 +687,6 @@ fn solve_module(problem: &Problem) -> Solution {
                             prev_state: state_to_idx(&prev_state, problem) as u32,
                             prev_node: prev_node as i32,
                             action,
-                            cost_descr,
                         });
                         next_state_costs[next_state_idx] = total_cost;
                         next_state_nodes[next_state_idx] = new_node_idx;
@@ -736,6 +701,8 @@ fn solve_module(problem: &Problem) -> Solution {
         next_state_nodes.fill(UNREACHABLE_NODE);
     }
 
+    println!("STATS states {} processed {} edges {} avg.edge {}", n_states_total, n_states_processed, n_edges, n_edges as f32 / n_states_processed as f32);
+
     // Find the best final state and trace back to create plan
 
     let best_state_idx = state_costs
@@ -747,23 +714,14 @@ fn solve_module(problem: &Problem) -> Solution {
 
     let objective = state_costs[best_state_idx];
     let mut node = &nodes[state_nodes[best_state_idx] as usize];
-    let mut states: Vec<(usize, Action, Vec<CostDescription>, usize)> = vec![(
-        problem.planning_end_time,
-        node.action,
-        node.cost_descr.clone(),
-        best_state_idx,
-    )];
+    let mut states: Vec<(usize, Action, usize)> =
+        vec![(problem.planning_end_time, node.action, best_state_idx)];
     let mut t = problem.planning_end_time;
 
     while node.prev_node >= 0 {
         t -= 1;
         node = &nodes[node.prev_node as usize];
-        states.push((
-            t,
-            node.action,
-            node.cost_descr.clone(),
-            node.prev_state as usize,
-        ));
+        states.push((t, node.action, node.prev_state as usize));
     }
 
     assert!(t == first_time);
@@ -780,7 +738,7 @@ fn solve_module(problem: &Problem) -> Solution {
     );
 
     let mut output = Vec::new();
-    for (t, action, cost_descr, state_idx) in states {
+    for (t, action, state_idx) in states {
         let state = idx_to_state(state_idx, problem);
         let biomass = if state.tanks_in_use == 0 {
             0.0
@@ -804,7 +762,7 @@ fn solve_module(problem: &Problem) -> Solution {
             lb,
             ub
         );
-        println!("    costs: {:?}", cost_descr);
+        // println!("    costs: {:?}", cost_descr);
 
         output.push(SolutionState {
             deploy_period: if state.tanks_in_use > 0 {
