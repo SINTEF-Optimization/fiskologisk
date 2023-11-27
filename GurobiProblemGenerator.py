@@ -1037,7 +1037,7 @@ class GurobiProblemGenerator(SolutionProvider):
         Returns the corresponding contraint references.
         """
 
-        period_map = {p.index: p for p in self.problem_generator.environment.periods}
+        period_map = {p.index: p for p in self.environment.periods}
 
         # def num_active_tanks(period_tanks):
         #     """If transferring to a larger number of tanks in the next period,
@@ -1059,7 +1059,7 @@ class GurobiProblemGenerator(SolutionProvider):
         is is zero or if it is less than the period before. This relaxes the choice of when to do transfers.
         Returns the corresponding contraint references."""
 
-        period_map = {p.index: p for p in self.problem_generator.environment.periods}
+        period_map = {p.index: p for p in self.environment.periods}
 
         constraints = []
         prev_n = -1

@@ -96,7 +96,7 @@ class SubProblem:
 
             if solution is not None:
                 module = self.problem_generator.environment.modules[self.module_index]
-                self.problem_generator.lock_production_plan_by_nontransfer_num_tanks(
+                production_plan_constraints = self.problem_generator.lock_production_plan_by_nontransfer_num_tanks(
                     self.model, module, solution.period_tanks
                 )
 
@@ -110,7 +110,7 @@ class SubProblem:
                             self.problem_generator.get_master_column(self.module_index, relaxdp_obj_value, False)
                         )
 
-                self.problem_generator.remove_constraints(self.model, constraints)
+                self.problem_generator.remove_constraints(self.model, production_plan_constraints)
 
                 if self.verify_dp_solution:
                     self.model.optimize()
@@ -149,7 +149,7 @@ class SubProblem:
             if self.print_level >= 3:
                 print("*** New column:")
                 column.drop_positive_solution()
-            constraints = self.problem_generator.lock_binaries(self.model, column)
+            production_plan_constraints = self.problem_generator.lock_binaries(self.model, column)
 
             # Add column that maximizes biomass from all deploy periods
             if self.problem_generator.objective_profile != ObjectiveProfile.BIOMASS:
@@ -174,7 +174,7 @@ class SubProblem:
                     print("*** Column from max biomass except deploy in %s:" % dep_p)
                     biom_col.drop_positive_solution()
 
-            self.problem_generator.remove_constraints(self.model, constraints)
+            self.problem_generator.remove_constraints(self.model, production_plan_constraints)
 
         return profit_columns, biomass_columns
 
