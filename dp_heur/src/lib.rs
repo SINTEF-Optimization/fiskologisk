@@ -514,42 +514,24 @@ fn solve_module(problem: &Problem) -> Solution {
     const ROOT_NODE: i32 = -2;
 
     #[derive(Clone, Copy)]
-    struct MyNode {
+    struct Node {
         cost: f32,
         prev_state: i32,
     }
 
     let mut all_nodes = vec![
-        MyNode {
+        Node {
             cost: f32::INFINITY,
             prev_state: UNREACHABLE_NODE
         };
         n_states_per_time * n_time_steps
     ];
 
-    // let mut state_costs = vec![f32::INFINITY; n_states_per_time];
-    // let mut state_nodes: Vec<i32> = vec![UNREACHABLE_NODE; n_states_per_time];
-
-    // let mut next_state_costs = vec![f32::INFINITY; n_states_per_time];
-    // let mut next_state_nodes: Vec<i32> = vec![UNREACHABLE_NODE; n_states_per_time];
-
     let mut reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
     let mut next_reachable_states: Vec<u32> = Vec::with_capacity(n_states_per_time);
 
-    // struct Node {
-    //     prev_state: u32,
-    //     prev_node: i32,
-    //     // action: Action,
-    // }
-
-    // let mut nodes: Vec<Node> = Vec::new();
-    // nodes.reserve(n_states_per_time * n_time_steps / 4);
-
     let initial_state_idx = state_to_idx(&initial_state, problem);
-    // state_costs[initial_state_idx] = 0.0;
-    // state_nodes[initial_state_idx] = ROOT_NODE;
-
-    all_nodes[initial_state_idx] = MyNode {
+    all_nodes[initial_state_idx] = Node {
         cost: 0.0,
         prev_state: ROOT_NODE,
     };
