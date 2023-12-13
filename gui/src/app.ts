@@ -143,5 +143,4 @@ import { EndCause, SalmonPlanSolution, StartCause } from "./model";
     .attr("fill", d => shape(d.symbol).color)
     .attr("stroke", d => shape(d.symbol).color)
     .attr("d", d => shape(d.symbol).shape);
-
 })();
