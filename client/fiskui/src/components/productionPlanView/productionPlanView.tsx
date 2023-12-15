@@ -15,6 +15,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         // set the dimensions and margins of the graph
         const margin = { top: 10, right: 30, bottom: 30, left: 60 },
             legendWidth = 300,
+            heightBiomass = 300,
             width = 1200 - margin.left - margin.right,
             height = 600 - margin.top - margin.bottom;
 
@@ -26,12 +27,12 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         const svg = d3.select(".prodPlanView")
             .append("svg")
             .attr("width", width + margin.left + margin.right + legendWidth)
-            .attr("height", height + margin.top + margin.bottom)
+            .attr("height", height + margin.top + 2*margin.bottom + heightBiomass)
             .append("g")
             .attr("transform",
             "translate(" + margin.left + "," + margin.top + ")");
 
-        // const timeDomain = d3.extent(data.periods.flatMap(p => [p.start_date, p.end_date])) as [Date, Date]
+        // Timescale to display months
         const startTime = new Date(2021,2,1)
         const endTime = new Date((new Date(2021,2,1)).setMonth(startTime.getMonth()+48));
         const xScale = d3.scaleTime()
@@ -39,10 +40,12 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
           //.nice()
           .range([0, width]);
 
+        // Linear scale to display symbols
         const xScaleLinear = d3.scaleLinear()
             .domain([solution.planning_horizon.first_period - 1, solution.planning_horizon.first_period + solution.planning_horizon.years * 12 + 1])
             .range([0, width]);
 
+        // Append x scale
         svg.append("g").attr("transform", "translate(0," + height + ")").call(d3.axisBottom(xScale));
 
         const tankRefToName = ({ module_idx, tank_idx } : {module_idx: number, tank_idx: number}) => `m${module_idx}-tank${tank_idx}`;
@@ -66,6 +69,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         const yScale = d3.scalePoint(
             yDomain, [margin.top, height - margin.bottom]);
 
+        // Append y scale
         svg.append("g").attr("transform", "translate(-10,0)").call(d3.axisLeft(yScale));
 
         // TODO background color on deploy periods.
@@ -176,6 +180,8 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                 .attr("d", d => shape(d.symbol).shape);
 
 
+        // ************************************** LEGEND *****************************************************
+
         // Get an array from 0 to number of values in Symbol enum (then remove 0 to avoid the empty symbol)
         const enumArray = Array.from(Array((Object.keys(Symbol).length / 2)-2).keys()).map(i => i+1);
 
@@ -210,64 +216,54 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
             .attr("dy", ".35em")
             .text(function(d) { return legendText(d); });
 
+
+        // ************************************** BIOMASS GRAPH *****************************************************
+
+        // Keep track of total biomass. First track biomass for each period for each tank (in each module). Structure is Map<tankid, Array<number>>.
+        const tankBiomassData: Map<number, Array<number>> = new Map();
+
+        // Total mass is just an array of length 48. (since we know we will have exactly 48 months)
+        const totalBiomassData = Array<number>(48).fill(0);
+        for (const cycle of solution.production_cycles) {
+            for (const tank_cycle of cycle.tank_cycles) {
+                const existingTankArray = tankBiomassData.get(tank_cycle.tank) ?? Array<number>(48).fill(0);
+                for (const period_masses of tank_cycle.period_biomasses) {
+                    // For tank
+                    existingTankArray[period_masses.period-24] = period_masses.biomass;
+
+                    // For total
+                    totalBiomassData[period_masses.period-24] = totalBiomassData[period_masses.period-24] + period_masses.biomass;
+                }
+                tankBiomassData.set(tank_cycle.tank, existingTankArray);
+            }
+        }
+
+        // Create grouph for the biomass graph
+        const biomass = svg
+            .append("g")
+            .attr("transform", "translate(0," + (height+margin.bottom) + ")")
+
+        // Append x scale
+        biomass.append("g").attr("transform", "translate(0," + heightBiomass + ")").call(d3.axisBottom(xScale));
+
+        // Append y scale
+        const yScaleBiomass = d3.scaleLinear()
+        .domain([0, Math.max(...totalBiomassData)])
+        .range([heightBiomass, 0]);
+        // Append y scale
+        biomass.append("g").attr("transform", "translate(-10,0)").call(d3.axisLeft(yScaleBiomass));
+
+        // prepare a helper function
+        var grapghBiomass = d3.line()
+        .x(function(d) { return xScaleLinear(d[0]) })
+        .y(function(d) { return yScaleBiomass(d[1]) })
+
+        biomass.append("path")
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 1.5)
+                .attr("d", grapghBiomass(totalBiomassData.map((value,index) => { return [index+24, value]})));
     }
 
     return <div className="prodPlanView"/>
 }
-
-// export interface D3ViewDimensions {
-//     width: number
-//     height: number
-//     margins: D3ViewMargins
-// }
-
-// export interface D3ViewMargins {
-//     top: number
-//     bottom: number
-//     left: number
-//     right: number
-// }
-
-// export interface ProductionPlanViewProps {
-//     data: any
-//     dimensions: D3ViewDimensions
-// }
-
-// enum Symbol {
-//     Empty,
-//     Deploy,
-//     Growing,
-//     PostSmolt,
-//     Harvest,
-//     TransferOut,
-//     TransferIn,
-//     BeforePlanningHorizon,
-//     AfterPlanningHorizon,
-//   }
-
-// export const ProductionPlanView = (props: ProductionPlanViewProps) => {
-
-//     // Define x scale
-//     const x = d3.scaleLinear().domain([props.data.planning_horizon.first_period - 1, props.data.planning_horizon.first_period + props.data.planning_horizon.years * 12 + 1]).range([0, props.dimensions.width]);
-
-//     // Define y scale
-//     const yDomain = props.data.modules.flatMap((m: Module) => m.tank_indices.map((t: number) => tankRefToName({ module_idx: m.module_index, tank_idx: t })));
-//     const y = d3.scalePoint(yDomain, [props.dimensions.margins.top, props.dimensions.height - props.dimensions.margins.bottom]);
-//     const tankRefToName = ({ module_idx, tank_idx } : {module_idx:number, tank_idx:number}) => `m${module_idx}-tank${tank_idx}`;
-
-//     // Use effects for the axis. D3 manipulates the DOM, so we attach refs to elements and pass it through useEffect-hooks to D3.
-//     const gx = useRef(null);
-//     const gy = useRef(null);
-//     useEffect(() => void d3.select(gx.current).call(d3.axisBottom(x)), [gx, x]);
-//     useEffect(() => void d3.select(gy.current).call(d3.axisLeft(y)), [gy, y]);
-
-
-
-
-//     return (
-//         <svg width={props.dimensions.width} height={props.dimensions.height}>
-//             <g ref={gx} transform={`translate(0,${props.dimensions.height})`}/>
-//             <g ref={gy} transform={`translate(-10,0)`}/>
-//         </svg>
-//     )
-// }
