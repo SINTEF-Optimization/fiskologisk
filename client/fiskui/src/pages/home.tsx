@@ -3,6 +3,7 @@ import { FiskologiskOptimizationForm } from "../components/fiskologiskOptimizati
 import { FiskologiskResults } from "../components/fiskologiskResults"
 import axios from "axios";
 import { SalmonPlanSolution } from "../components/productionPlanView/models";
+import { useFiskologiskApiService } from "../services/fiskologiskApi/fiskologiskApiService";
 
 export enum ResultState {
     Loading,
@@ -14,6 +15,7 @@ export const HomePage = () => {
     const [resultState, setResultState] = useState<ResultState>(ResultState.Loading);
     const [resultData, setResultData] = useState<any | null>(null)
     const activePollingTimer = useRef<NodeJS.Timeout>(); // In case we exit or something strange happens while waiting for a polling call or whatever
+    const fiskologiskApi = useFiskologiskApiService();
 
     useEffect(() => {
         if (resultState === ResultState.Loading) {
@@ -28,24 +30,20 @@ export const HomePage = () => {
         }
         console.log("Polling for fiskologisk results data");
 
-        // TODO: replace this with proper endpoint
-        axios.get(`https://api.chucknorris.io/jokes/random`).then((response) => {
-            if (response.data["status"] === "computing") {
+        fiskologiskApi.ResultsApi.get().then((response) => {
+            if (response["status"] === "computing") {
                 activePollingTimer.current = setTimeout(fetchData, 1000)
             }
-            else if (response.data["status"] === "failed") {
+            else if (response["status"] === "failed") {
                 setResultState(ResultState.Infeasible);
             }
             else {
-                // Load static data. TODO: replace this with proper logic once backend returns real data
-                fetch("M2_T4_Y4_I1.json").then(res => res.json()).then((result) => {
-                    const mockresponse = result as SalmonPlanSolution;
-                    console.log(mockresponse);
-                    setResultState(ResultState.Loaded);
-                    setResultData(mockresponse);
-                });
+                setResultState(ResultState.Loaded);
+                setResultData(response);
             }
+
         });
+
     }
 
     const onNewCalculationSubmitted = () => {

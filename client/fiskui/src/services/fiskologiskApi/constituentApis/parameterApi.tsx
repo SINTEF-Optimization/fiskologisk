@@ -1,5 +1,5 @@
 import { AxiosInstance } from "axios"
-import { SetParameterRequest } from "../requests/setParamatersRequest";
+import { SetParameterRequest } from "../requests/setParametersRequest";
 
 export class ParametersApi {
   private fiskologiskClient: AxiosInstance

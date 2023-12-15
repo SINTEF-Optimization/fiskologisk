@@ -7,10 +7,12 @@ import {
 import axios from "axios"
 import { RunOptimizationApi } from "./constituentApis/runOptimizationApi"
 import { ParametersApi } from "./constituentApis/parameterApi"
+import { ResultsApi } from "./constituentApis/getResultsApi"
 
 export interface FiskologiskApiService {
     RunOptimizationApi: RunOptimizationApi
     ParametersApi: ParametersApi
+    ResultsApi: ResultsApi
 }
 
 export interface FiskologiskApiServiceProviderProps {
@@ -24,7 +26,8 @@ export const FiskologiskApiServiceProvider: FC<FiskologiskApiServiceProviderProp
         baseURL: 'http://127.0.0.1:5000'}) //TODO: replace this with actual IP of webserver on deployment
     const fiskologiskApiService: FiskologiskApiService = {
         RunOptimizationApi: new RunOptimizationApi(client),
-        ParametersApi: new ParametersApi(client)
+        ParametersApi: new ParametersApi(client),
+        ResultsApi: new ResultsApi(client)
     }
 
     return (

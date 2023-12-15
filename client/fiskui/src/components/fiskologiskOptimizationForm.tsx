@@ -1,5 +1,5 @@
 import { useFiskologiskApiService } from "../services/fiskologiskApi/fiskologiskApiService";
-import { SetParameterRequest } from "../services/fiskologiskApi/requests/setParamatersRequest";
+import { SetParameterRequest } from "../services/fiskologiskApi/requests/setParametersRequest";
 import { NumberInput } from "./numberInput";
 import { useFormik } from "formik";
 

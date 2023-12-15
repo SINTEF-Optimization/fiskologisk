@@ -2,7 +2,7 @@ import json
 import os
 import random
 import subprocess
-from flask import Flask, request, make_response
+from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 
 app = Flask(__name__)
@@ -19,9 +19,12 @@ def check_pid(pid):
 
 
 @app.get("/parameters")
-def get_parameter():
-    with open("parameters.json") as f:
-        return json.load(f)
+def get_parameters():
+    try:
+        with open("parameters.json") as f:
+            return json.load(f)
+    except:
+        return ("No current parameters found. Set parameters and try again",404)
 
 @app.post("/parameters")
 @cross_origin(supports_credentials=True)
@@ -47,20 +50,22 @@ def start():
 
 @app.get("/results")
 def results():
-    with open("process_status.json") as f:
-        process = json.load(f)
+    try:
+        with open("process_status.json") as f:
+            process = json.load(f)
+        pid = process["pid"]
+        run_id = process["run_id"]
 
-    pid = process["pid"]
-    run_id = process["run_id"]
-
-    if check_pid(pid):
-        return {"status": "computing"}
-    else:
-        results_filename = f"results-{run_id}.json"
-        if os.path.isfile(results_filename):
-            with open(results_filename) as f:
-                return json.load(f)
+        if check_pid(pid):
+            return {"status": "computing"}
         else:
-            return {"status": "failed"}
+            results_filename = f"results-{run_id}.json"
+            if os.path.isfile(results_filename):
+                with open(results_filename) as f:
+                    return (jsonify(json.load(f)), 200)
+            else:
+                return {"status": "failed"}
+    except:
+        return ("No optimization runs found. Start an optimization and try again",404)
 
 
