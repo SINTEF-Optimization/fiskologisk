@@ -32,13 +32,14 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
             "translate(" + margin.left + "," + margin.top + ")");
 
         // const timeDomain = d3.extent(data.periods.flatMap(p => [p.start_date, p.end_date])) as [Date, Date]
+        const startTime = new Date(2021,2,1)
+        const endTime = new Date((new Date(2021,2,1)).setMonth(startTime.getMonth()+48));
+        const xScale = d3.scaleTime()
+          .domain([startTime,endTime])
+          //.nice()
+          .range([0, width]);
 
-        // const xScale = d3.scaleTime()
-        //   .domain(timeDomain)
-        //   .nice()
-        //   .range([0, width]);
-
-        const xScale = d3.scaleLinear()
+        const xScaleLinear = d3.scaleLinear()
             .domain([solution.planning_horizon.first_period - 1, solution.planning_horizon.first_period + solution.planning_horizon.years * 12 + 1])
             .range([0, width]);
 
@@ -168,7 +169,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
             .join("path")
                 .attr(
                 "transform",
-                d => `translate(${xScale(d.x)}, ${yScale(d.y)}) ` + (shape(d.symbol).transform ?? "")
+                d => `translate(${xScaleLinear(d.x)}, ${yScale(d.y)}) ` + (shape(d.symbol).transform ?? "")
                 )
                 .attr("fill", d => shape(d.symbol).color)
                 .attr("stroke", d => shape(d.symbol).color)
