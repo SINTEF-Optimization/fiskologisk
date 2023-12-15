@@ -175,36 +175,39 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                 .attr("d", d => shape(d.symbol).shape);
 
 
-        // Get an array from 0 to number of values in Symbol enum
+        // Get an array from 0 to number of values in Symbol enum (then remove 0 to avoid the empty symbol)
         const enumArray = Array.from(Array((Object.keys(Symbol).length / 2)-2).keys()).map(i => i+1);
 
+        // Create the group for the legend
         const legend = svg
             .append("g")
                 .attr("transform", "translate(" + width + ",-12)")
-                .attr("style", "{border: 2px solid gold}");
+                //.attr("style", "outline: thick solid grey");
 
-            legend.selectAll("path")
-            .data(enumArray)
-            .join("path")
-                .attr(
-                    "transform",
-                    d => `translate(${margin.right}, ${d*(24)}) ` + (shape(d).transform ?? "")
-                    )
-                .attr("fill", d => shape(d).color)
-                .attr("stroke", d => shape(d).color)
-                .attr("d", d => shape(d).shape);
+        // Add the symbols
+        legend.selectAll("path")
+        .data(enumArray)
+        .join("path")
+            .attr(
+                "transform",
+                d => `translate(${margin.right}, ${d*(24)}) ` + (shape(d).transform ?? "")
+                )
+            .attr("fill", d => shape(d).color)
+            .attr("stroke", d => shape(d).color)
+            .attr("d", d => shape(d).shape);
 
-            legend.selectAll("text")
-            .data(enumArray)
-            .join("text")
-                .attr(
-                    "transform",
-                    d => `translate(${margin.right + 24}, ${d*(24)}) `
-                    )
-                .attr("fill", d => shape(d).color)
-                .attr("stroke", d => shape(d).color)
-                .attr("dy", ".35em")
-                .text(function(d) { return legendText(d); });
+        // Add text
+        legend.selectAll("text")
+        .data(enumArray)
+        .join("text")
+            .attr(
+                "transform",
+                d => `translate(${margin.right + 24}, ${d*(24)}) `
+                )
+            .attr("fill", d => shape(d).color)
+            .attr("stroke", d => shape(d).color)
+            .attr("dy", ".35em")
+            .text(function(d) { return legendText(d); });
 
     }
 

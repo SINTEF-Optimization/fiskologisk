@@ -21,7 +21,7 @@ const FiskologiskApiServiceContext = createContext<FiskologiskApiService | undef
 
 export const FiskologiskApiServiceProvider: FC<FiskologiskApiServiceProviderProps> = ({ children }) => {
     const client = axios.create({
-        baseURL: 'http://127.0.0.1:5000'})
+        baseURL: 'http://127.0.0.1:5000'}) //TODO: replace this with actual IP of webserver on deployment
     const fiskologiskApiService: FiskologiskApiService = {
         RunOptimizationApi: new RunOptimizationApi(client),
         ParametersApi: new ParametersApi(client)
