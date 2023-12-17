@@ -5,6 +5,7 @@ import gurobipy as gp
 import json
 import os
 import math
+from DecompCyclesSolver import decomp_cycles_solve
 from SolutionProvider import SolutionProvider
 from GurobiProblemGenerator import GurobiProblemGenerator
 from GurobiProblemGenerator import ObjectiveProfile
@@ -24,7 +25,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, use_decomposistion: bool, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str, use_dp_heuristic :bool) -> None:
+def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, use_decomposistion: int, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str, use_dp_heuristic :bool) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -34,7 +35,9 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
 
     sol_prov: SolutionProvider = None
     time0 = time.time()
-    if use_decomposistion:
+    if use_decomposistion == 2:
+        sol_prov = decomp_cycles_solve(environment, objective, allow_transfer, add_symmetry_breaks)
+    elif use_decomposistion == 1:
         gmpg = GurobiMasterProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gmpg
 
@@ -304,7 +307,7 @@ if __name__ == "__main__":
     objective = ObjectiveProfile.PROFIT
     allow_transfer = True
     add_symmetry_breaks = False
-    use_decomposistion = False
+    use_decomposistion = 0
     max_single_modules = 0
     fixed_values_file = ""
     use_dp_heuristic = False
@@ -329,7 +332,7 @@ if __name__ == "__main__":
                 allow_transfer = parse_bool(value, True)
 
             elif argument in ("-d", "--Decomposition"):
-                use_decomposistion = parse_bool(value, True)
+                use_decomposistion = parse_int(value, 0)
 
             elif argument in ("-m", "--Max_single_modules"):
                 max_single_modules = parse_int(value, 0)
