@@ -123,6 +123,7 @@ class GurobiMasterProblemGenerator:
         """
 
         model = gp.Model()
+        model.Params.Threads = 1
 
         # Empty set of columns and variables
         self.columns = {}

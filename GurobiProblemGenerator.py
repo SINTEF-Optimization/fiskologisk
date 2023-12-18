@@ -11,6 +11,7 @@ from Module import Module
 from Tank import Tank
 from MasterColumn import MasterColumn
 
+
 class ObjectiveProfile(Enum):
     """
     Profile for setup of objective in MIP problem
@@ -21,6 +22,7 @@ class ObjectiveProfile(Enum):
 
     BIOMASS = 2
     """Maximize weight of extracted post-smolt and harvested salmon from production facility"""
+
 
 class GurobiProblemGenerator(SolutionProvider):
     """
@@ -125,10 +127,14 @@ class GurobiProblemGenerator(SolutionProvider):
         """
 
         model = gp.Model()
+        # model.Params.Threads = 
+        model.Params.Cuts = 0
+        model.Params.Heuristics = 0
+
         self.add_variables(model, module_idx)
         self.core_objective_expression = self.create_core_objective_expression(module_idx)
         self.add_constraints(model, module_idx)
-        
+
         return model
 
     def get_master_column(self, module_idx: int, objective_value: float, best_sol: bool) -> MasterColumn:
@@ -593,12 +599,27 @@ class GurobiProblemGenerator(SolutionProvider):
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
         """
 
+        assert self.initial_value_constraints == None
+        self.initial_value_constraints = []
+
         first_p = self.environment.periods[0]
         for dep_p in first_p.deploy_periods:
             if dep_p != first_p:
                 for t in self.environment.get_tanks(module_idx):
-                    init_w = t.initial_weight if t.initial_weight > 0 and t.initial_deploy_period == dep_p.index else 0.0
-                    model.addConstr(self.population_weight_variable(dep_p, t, first_p) == init_w, name = "initial_population_%s,%s"%(dep_p.index, t.index))
+                    init_w = (
+                        t.initial_weight if t.initial_weight > 0 and t.initial_deploy_period == dep_p.index else 0.0
+                    )
+                    c = model.addConstr(
+                        self.population_weight_variable(dep_p, t, first_p) == init_w,
+                        name="initial_population_%s,%s" % (dep_p.index, t.index),
+                    )
+                    self.initial_value_constraints.append(c)
+
+    def remove_initial_value_constraints(self, model :gp.Model, module_idx :int = -1) -> None:
+        assert self.initial_value_constraints is not None
+        for c in self.initial_value_constraints:
+            model.remove(c)
+        self.initial_value_constraints = None
 
     def add_smolt_deployment_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds the smolt deployment constraints to the MIP problem

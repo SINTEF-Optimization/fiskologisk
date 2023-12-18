@@ -6,6 +6,8 @@ from GurobiProblemGenerator import ObjectiveProfile
 from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
 from MasterColumn import MasterColumn
 from SubproblemDP import solve_dp
+from SubproblemAgeDP import solve_dp as solve_age_dp
+
 from multiprocessing.pool import ThreadPool
 
 
@@ -84,24 +86,30 @@ class SubProblem:
         """
 
         self.problem_generator.set_subproblem_objective(self.model, period_biomass_duals, yearly_production_duals)
+        module = self.problem_generator.environment.modules[self.module_index]
 
         profit_columns = []
         if self.use_dp_heuristic:
-            solution = solve_dp(
-                self.problem_generator.environment,
-                self.module_index,
-                period_biomass_duals,
-                yearly_production_duals,
-                self.bins
-            )
+            # solution = solve_dp(
+            #     self.problem_generator.environment,
+            #     self.module_index,
+            #     period_biomass_duals,
+            #     yearly_production_duals,
+            #     self.bins,
+            # )
+
+            solution = solve_age_dp(module, self.problem_generator, self.model)
 
             if solution is not None:
-                module = self.problem_generator.environment.modules[self.module_index]
                 production_plan_constraints = self.problem_generator.lock_production_plan_by_nontransfer_num_tanks(
                     self.model, module, solution.period_tanks
                 )
 
                 self.model.optimize()
+                if self.model.status != gp.GRB.OPTIMAL:
+                    self.model.computeIIS()
+                    self.model.write("iis.ilp")
+                    raise Exception()
                 relaxdp_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
 
                 if self.model.ObjVal > convex_dual:
@@ -120,10 +128,8 @@ class SubProblem:
                     if report_suboptimality is not None:
                         report_suboptimality(relaxdp_obj_value, mip_obj_value)
 
-
         polish = self.polish_dp_with_mip and len(profit_columns) == 0
         if not self.use_dp_heuristic or polish:
-
             self.model.Params.Cutoff = convex_dual
             self.model.optimize()
             self.model.Params.Cutoff = "default"
