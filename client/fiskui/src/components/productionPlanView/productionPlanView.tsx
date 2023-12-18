@@ -241,7 +241,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         // Create grouph for the biomass graph
         const biomass = svg
             .append("g")
-            .attr("transform", "translate(0," + (height+margin.bottom) + ")")
+            .attr("transform", "translate(0," + (height+margin.bottom) + ")");
 
         // Append x scale
         biomass.append("g").attr("transform", "translate(0," + heightBiomass + ")").call(d3.axisBottom(xScale));
@@ -251,10 +251,12 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         .domain([0, Math.max(...totalBiomassData)])
         .range([heightBiomass, 0]);
         // Append y scale
-        biomass.append("g").attr("transform", "translate(-10,0)").call(d3.axisLeft(yScaleBiomass));
+        const yAxisBiomass = biomass.append("g")
+            .attr("transform", "translate(-10,0)")
+            .call(d3.axisLeft(yScaleBiomass));
 
         // prepare a helper function
-        var grapghBiomass = d3.line()
+        var graphBiomass = d3.line()
         .x(function(d) { return xScaleLinear(d[0]) })
         .y(function(d) { return yScaleBiomass(d[1]) })
 
@@ -262,7 +264,81 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                 .attr("fill", "none")
                 .attr("stroke", "steelblue")
                 .attr("stroke-width", 1.5)
-                .attr("d", grapghBiomass(totalBiomassData.map((value,index) => { return [index+24, value]})));
+                .attr("d", graphBiomass(totalBiomassData.map((value,index) => { return [index+24, value]})));
+
+
+
+        // ************************************** DYNAMICALLY UPDATE GRAPH BASED ON MOUSE POSITION *****************************************************
+
+        // Handles mouse event: checks what tank is "selected" and updates data in biomass graph
+
+        let currentTankIndex = 0;
+
+        const onMouseover = (tankIndex: number) => {
+            if (tankIndex === currentTankIndex)
+                return;
+            const biomassData = tankBiomassData.get(tankIndex);
+            if (biomassData){
+                // Update scale
+                yScaleBiomass.domain([0, Math.max(...biomassData)])
+                yAxisBiomass.call(d3.axisLeft(yScaleBiomass));
+
+                // Remove old data and graph new
+                biomass.selectAll("path")
+                    .remove();
+                biomass.append("path")
+                    .attr("fill", "none")
+                    .attr("stroke", "steelblue")
+                    .attr("stroke-width", 1.5)
+                    .attr("d", graphBiomass(biomassData.map((value,index) => { return [index+24, value]})));
+            }
+            currentTankIndex = tankIndex;
+        }
+
+        const onMouseOut = () => {
+            // Update scale
+            yScaleBiomass.domain([0, Math.max(...totalBiomassData)])
+            yAxisBiomass.call(d3.axisLeft(yScaleBiomass));
+
+            // Remove old data and graph new
+            biomass.selectAll("path")
+                .remove();
+            biomass.append("path")
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 1.5)
+                .attr("d", graphBiomass(totalBiomassData.map((value,index) => { return [index+24, value]})));
+        }
+
+        // One rectangle for each row. First
+        // First row:
+        svg.append("rect")
+            .attr('height', height/(2*tankBiomassData.size-1))
+            .attr("width", width)
+            .attr('fill', 'none')
+            .attr('pointer-events', 'all')
+            .on('mouseover', (e, d) => {
+                onMouseover(0);
+            })
+            .on('mouseout', (e) => {
+                onMouseOut();
+            });
+
+        for (let i = 0; i<tankBiomassData.size-1; i++) {
+            svg
+            .append("rect")
+                .attr('height', height/(tankBiomassData.size-1))
+                .attr("width", width)
+                .attr('fill', 'none')
+                .attr('y', i*(height/(tankBiomassData.size-1))+height/(2*tankBiomassData.size-1))
+                .attr('pointer-events', 'all')
+                .on('mousemove', (e, d) => {
+                    onMouseover(i+1);
+                })
+                .on('mouseout', (e) => {
+                    onMouseOut();
+                });
+        }
     }
 
     return <div className="prodPlanView"/>
