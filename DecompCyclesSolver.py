@@ -209,7 +209,11 @@ def decomp_cycles_solve(
     }
 
     # Initial production cycles
-    init_cstr = {m: rmp.addConstr(gp.LinExpr() == 1, name=f"init_m{m.index}") for m in env.modules}
+    init_cstr = {
+        m: rmp.addConstr(gp.LinExpr() == 1, name=f"init_m{m.index}")
+        for m, p in initial_deploy_periods.items()
+        if p is not None
+    }
 
     master_columns: List[Tuple[DecompCyclesColumn, gp.Var]] = []
 
@@ -268,6 +272,7 @@ def decomp_cycles_solve(
             modules = [init_m] if init_m is not None else env.modules
             constant_price = 0
             is_initial = init_m is not None
+            constraints = []
 
             if is_initial:
                 constant_price += shadow_prices.module_initial[init_m]
@@ -278,7 +283,17 @@ def decomp_cycles_solve(
                     (sum(shadow_prices.module_period[m][p] for p in range(p1, p2 + 1)) for m in env.modules)
                 )
 
-            constraints = []
+                for dep_p in env.release_periods:
+                    if dep_p.index < p1:
+                        for p in dep_p.periods_after_deploy:
+                            for t in env.modules[0].tanks:
+                                constraints.append(
+                                    pricing_mip.addConstr(
+                                        subproblem_generator.population_weight_variable(dep_p, t, p) == 0,
+                                        name=f"no pre-planning biomass",
+                                    )
+                                )
+
             for period in env.periods:
                 if period.index < p1 or period.index >= p2:
                     for t in env.modules[0].tanks:
@@ -354,12 +369,6 @@ def decomp_cycles_solve(
     # Verify the whole solution in the original non-decomposed problem
     full_gpg = GurobiProblemGenerator(env, objective_profile, allow_transfer, add_symmetry_breaks)
     full_model = full_gpg.build_model()
-    
-    # full_model.update()
-    # relaxed_full_model = full_model.relax()
-    # relaxed_full_model.write("unsolvable_lp.mps")
-    # relaxed_full_model.optimize()
-    # print("relaxed objective:", relaxed_full_model.ObjVal)
 
     set_solution(full_model, full_gpg, solution_dict)
     full_model.optimize()
@@ -368,7 +377,7 @@ def decomp_cycles_solve(
         full_model.write("iis.ilp")
         raise Exception()
 
-    return DecompCyclesSolution(solution_dict)
+    return full_gpg
 
 
 def initial_columns(
