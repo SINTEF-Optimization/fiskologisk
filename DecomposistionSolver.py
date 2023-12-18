@@ -6,6 +6,7 @@ from GurobiProblemGenerator import ObjectiveProfile
 from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
 from MasterColumn import MasterColumn
 from SubproblemDP import solve_dp
+from multiprocessing.pool import ThreadPool
 
 
 class SubProblem:
@@ -179,6 +180,37 @@ class SubProblem:
         return profit_columns, biomass_columns
 
 
+def solve_subproblem(sp, iteration, period_biomass_duals, yearly_production_duals, convex_duals):
+    print("*** Searching for new column, module " + str(sp.module_index) + ", iteration " + str(iteration))
+    t0 = time.time()
+    output, subopt = [], []
+
+    def report_suboptimality(dp_obj, mip_obj):
+        subopt.append((sp.module_index, dp_obj, mip_obj))
+
+    new_cols, biomass_columns = sp.solve(
+        iteration,
+        period_biomass_duals,
+        yearly_production_duals,
+        convex_duals[sp.module_index],
+        report_suboptimality,
+    )
+    output.append(
+        "Iteration %s, subproblem %s, generated %s columns (sec)\t%s"
+        % (iteration, sp.module_index, len(new_cols), time.time() - t0)
+    )
+    print(
+        "*** "
+        + str(len(new_cols))
+        + " new columns found and added to master problem, module "
+        + str(sp.module_index)
+        + ", iteration "
+        + str(iteration)
+    )
+
+    return new_cols, biomass_columns, output, subopt
+
+
 class DecomposistionSolver:
     """A solver for the salmon production planning problem using the Dantzig-Wolfe decomposition algorithm by column generations.
     One subproblem is generated for each module in the production facility, while a Master Problem is used to combine the solutions from the
@@ -261,33 +293,14 @@ class DecomposistionSolver:
             columns_added = False
 
             # Run the column generation problems for each module
-            for sp in self.sub_problems.values():
-                print("*** Searching for new column, module " + str(sp.module_index) + ", iteration " + str(iteration))
-                t0 = time.time()
-
-                def report_suboptimality(dp_obj, mip_obj):
-                    suboptimality.append((sp.module_index, dp_obj, mip_obj))
-
-                new_cols, biomass_columns = sp.solve(
-                    iteration,
-                    period_biomass_duals,
-                    yearly_production_duals,
-                    convex_duals[sp.module_index],
-                    report_suboptimality,
-                )
-                log_times.append(
-                    "Iteration %s, subproblem %s, generated %s columns (sec)\t%s"
-                    % (iteration, sp.module_index, len(new_cols), time.time() - t0)
-                )
-                print(
-                    "*** "
-                    + str(len(new_cols))
-                    + " new columns found and added to master problem, module "
-                    + str(sp.module_index)
-                    + ", iteration "
-                    + str(iteration)
-                )
-
+            # with ThreadPool(1) as pool:
+            for new_cols, biomass_columns, sp_log_times, sp_suboptimality in map(
+                lambda x: solve_subproblem(*x),
+                [
+                    (sp, iteration, period_biomass_duals, yearly_production_duals, convex_duals)
+                    for sp in self.sub_problems.values()
+                ],
+            ):
                 # Add new columns to the Master Problem from solutions when solving the column generation subproblems.
                 # The additional columns from the biomass maximization/minimization objectives are only collected now and added to the Master Problem when the subproblems no longer are able to produce more columns.
                 for new_col in new_cols:
@@ -298,6 +311,9 @@ class DecomposistionSolver:
 
                 for column in biomass_columns:
                     self.problem_generator.add_column(self.master_model, column)
+
+                log_times.extend(sp_log_times)
+                suboptimality.extend(sp_suboptimality)
 
         self.master_model.optimize()
         self.problem_generator.generate_solution()
@@ -335,7 +351,9 @@ class DecomposistionSolver:
         if len(suboptimality) > 0:
             print("Suboptimality of DP approach:")
             for mod, dp_obj, mip_obj in suboptimality:
-                print(f" - module{mod} dp={dp_obj} mip={mip_obj} suboptimality={100.0 * ( mip_obj / dp_obj  - 1.0 ):.2f}%")
+                print(
+                    f" - module{mod} dp={dp_obj} mip={mip_obj} suboptimality={100.0 * ( mip_obj / dp_obj  - 1.0 ):.2f}%"
+                )
 
     def create_initial_columns(self) -> list[MasterColumn]:
         """Generates the initial columns to be added to the Master Problem.
