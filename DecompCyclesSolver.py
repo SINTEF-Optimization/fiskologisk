@@ -377,7 +377,7 @@ def decomp_cycles_solve(
         full_model.write("iis.ilp")
         raise Exception()
 
-    return full_gpg
+    return full_gpg, full_model
 
 
 def initial_columns(

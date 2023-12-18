@@ -36,7 +36,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     sol_prov: SolutionProvider = None
     time0 = time.time()
     if use_decomposistion == 2:
-        sol_prov = decomp_cycles_solve(environment, objective, allow_transfer, add_symmetry_breaks)
+        sol_prov, model = decomp_cycles_solve(environment, objective, allow_transfer, add_symmetry_breaks)
     elif use_decomposistion == 1:
         gmpg = GurobiMasterProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gmpg
