@@ -154,7 +154,8 @@ def read_periods(environment : Environment, periods_json) -> None:
 
         if is_planning or is_deploy:
             period = Period(month_idx, month_in_year, is_deploy, is_planning)
-
+            environment.period_indices[period.index] = period
+            
             if is_deploy:
                 environment.release_periods.append(period)
                 if is_planning:
@@ -168,6 +169,7 @@ def read_periods(environment : Environment, periods_json) -> None:
                     environment.years.append(year)
                 year.periods.append(period)
                 environment.periods.append(period)
+                
 
         month_in_year += 1
         if month_in_year == 12:

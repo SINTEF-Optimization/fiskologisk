@@ -127,7 +127,7 @@ class GurobiProblemGenerator(SolutionProvider):
         """
 
         model = gp.Model()
-        # model.Params.Threads = 
+        model.Params.LogToConsole = 0
         model.Params.Cuts = 0
         model.Params.Heuristics = 0
 
@@ -591,31 +591,40 @@ class GurobiProblemGenerator(SolutionProvider):
         if self.max_single_modules > 0:
             self.add_max_single_modules_constraints(model)
 
-    def add_initial_value_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
+    def add_initial_value_constraints(self, model: gp.Model, module_idx: int = -1, constrain_module: int = -1) -> None:
         """Adds the smolt deployment constraints to the MIP problem
         
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
+            - constrain_module: 'int' If building a subproblem, we can choose to apply the initial value
+               constraint to a different module than the constraint was for. This is a workaround to 
+               avoid building a new subproblem for every module.
         """
 
         assert self.initial_value_constraints == None
         self.initial_value_constraints = []
 
+        # If we are using the constrain_module parameter, check that it makes sense (the tanks should be similar).
+        if constrain_module == -1:
+            constrain_module = module_idx
+
+        assert len(self.environment.get_tanks(module_idx)) == len(self.environment.get_tanks(constrain_module))
+
         first_p = self.environment.periods[0]
         for dep_p in first_p.deploy_periods:
             if dep_p != first_p:
-                for t in self.environment.get_tanks(module_idx):
+                for t1, t2 in zip(self.environment.get_tanks(module_idx), self.environment.get_tanks(constrain_module)):
                     init_w = (
-                        t.initial_weight if t.initial_weight > 0 and t.initial_deploy_period == dep_p.index else 0.0
+                        t1.initial_weight if t1.initial_weight > 0 and t1.initial_deploy_period == dep_p.index else 0.0
                     )
                     c = model.addConstr(
-                        self.population_weight_variable(dep_p, t, first_p) == init_w,
-                        name="initial_population_%s,%s" % (dep_p.index, t.index),
+                        self.population_weight_variable(dep_p, t2, first_p) == init_w,
+                        name="initial_population_%s,%s" % (dep_p.index, t2.index),
                     )
                     self.initial_value_constraints.append(c)
 
-    def remove_initial_value_constraints(self, model :gp.Model, module_idx :int = -1) -> None:
+    def remove_initial_value_constraints(self, model: gp.Model) -> None:
         assert self.initial_value_constraints is not None
         for c in self.initial_value_constraints:
             model.remove(c)

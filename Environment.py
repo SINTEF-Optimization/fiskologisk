@@ -1,3 +1,4 @@
+from typing import Dict
 from Module import Module
 from Tank import Tank
 from Period import Period
@@ -37,6 +38,9 @@ class Environment:
     parameters : Parameters
     """The global parameters in the MIP problem"""
 
+    period_indices : Dict[int, Period]
+    """A map from the period index to the period object."""
+
     def __init__(self) -> None:
         self.modules = []
         self.tanks = []
@@ -47,6 +51,7 @@ class Environment:
         self.preplan_release_periods = []
         self.years = []
         self.parameters = Parameters()
+        self.period_indices = {}
 
     def add_initial_populations(self, initial_populations) -> None:
 
