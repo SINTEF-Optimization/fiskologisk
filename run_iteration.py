@@ -149,7 +149,6 @@ def read_iteration_setup(file_path: str) -> Iteration:
     return Iteration(current_iteration, max_iteration, unextended_planning_years, core_setup_file, input_file, solution_output_file, initial_populations)
 
 def write_solution_file(file_path: str, environment: Environment, planning_years: int, sol_prov: SolutionProvider, allow_transfer: bool) -> Iteration:
-
     modules = []
     for m in environment.modules:
         tank_indices = []

@@ -37,7 +37,7 @@ def solve_dp(
     t0 = time.time()
     n_evals = 0
 
-    problem_generator.remove_initial_value_constraints(model, module.index)
+    problem_generator.remove_initial_value_constraints(model)
 
     environment = problem_generator.environment
     initial_deploy_period = set(tank.initial_deploy_period for tank in module.tanks if tank.initial_weight > 1e-5)
@@ -91,7 +91,7 @@ def solve_dp(
         problem_generator.remove_constraints(model, constraints)
 
         if use_initial_values:
-            problem_generator.remove_initial_value_constraints(model, module.index)
+            problem_generator.remove_initial_value_constraints(model)
         return value
 
     def succ(node: Node):

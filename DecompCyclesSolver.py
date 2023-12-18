@@ -1,5 +1,5 @@
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import time
 import sys
 from typing import Dict, List, Tuple
@@ -9,12 +9,9 @@ from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
 from GurobiProblemGenerator import GurobiProblemGenerator, ObjectiveProfile
 from Module import Module
 from Period import Period
-
 from SolutionProvider import SolutionProvider
-
-
-class DecompCyclesSolution(SolutionProvider):
-    pass
+from Tank import Tank
+from collections import Counter
 
 
 @dataclass
@@ -25,9 +22,127 @@ class ColumnPeriodInfo:
 
 
 @dataclass
+class SolutionDict:
+    extract: Dict[Tuple[Period, Tank, Period], float] = field(default_factory=dict)
+    biomass: Dict[Tuple[Period, Tank, Period], float] = field(default_factory=dict)
+    transfer: Dict[Tuple[Period, Tank, Tank, Period], float] = field(default_factory=dict)
+    contains_salmon: Dict[Tuple[Tank, Period], float] = field(default_factory=dict)
+    did_deploy: Dict[Tuple[Module, Period], float] = field(default_factory=dict)
+    did_extract: Dict[Tuple[Tank, Period], float] = field(default_factory=dict)
+    did_transfer: Dict[Tuple[Tank, Period], float] = field(default_factory=dict)
+
+    def add(self, other):
+        def add_dicts(a, b):
+            return dict(Counter(a) + Counter(b))
+
+        self.extract = add_dicts(self.extract, other.extract)
+        self.biomass = add_dicts(self.biomass, other.biomass)
+        self.transfer = add_dicts(self.transfer, other.transfer)
+        self.contains_salmon = add_dicts(self.contains_salmon, other.contains_salmon)
+        self.did_deploy = add_dicts(self.did_deploy, other.did_deploy)
+        self.did_extract = add_dicts(self.did_extract, other.did_extract)
+        self.did_transfer = add_dicts(self.did_transfer, other.did_transfer)
+
+
+def module_solution(
+    prob: GurobiProblemGenerator, solution_module: Module, actual_module: Module, prod_cycle: [Period]
+) -> SolutionDict:
+    env = prob.environment
+    solution_dict = SolutionDict()
+    prod_cycle_idxs = set(p.index for p in prod_cycle)
+    # print("PROD CYCLE ", prod_cycle_idxs)
+    tank_map = {t1: t2 for t1, t2 in zip(solution_module.tanks, actual_module.tanks)}
+
+    # Continous variable: Extracted salmon from deploy period from tank at period
+    for dep_p in env.release_periods:
+        for p in dep_p.extract_periods:
+            for t in solution_module.tanks:
+                if p.index in prod_cycle_idxs:
+                    sol_key = (dep_p.index, t.index, p.index)
+                    act_key = (dep_p.index, tank_map[t].index, p.index)
+                    solution_dict.extract[act_key] = prob.extract_weight_variables[sol_key].X
+
+    # Continous variable: Population weight from deploy period in tank at period
+    for dep_p in env.release_periods:
+        for p in dep_p.periods_after_deploy:
+            for t in solution_module.tanks:
+                if p.index in prod_cycle_idxs:
+                    sol_key = (dep_p.index, t.index, p.index)
+                    act_key = (dep_p.index, tank_map[t].index, p.index)
+                    solution_dict.biomass[act_key] = prob.population_weight_variables[sol_key].X
+
+    # Continous variable: Transferred salmon from deploy period from tank to tank in period
+    if prob.allow_transfer:
+        for dep_p in env.release_periods:
+            for p in dep_p.transfer_periods:
+                for from_t in solution_module.tanks:
+                    for to_t in from_t.transferable_to:
+                        if p.index in prod_cycle_idxs:
+                            sol_key = (dep_p.index, from_t.index, to_t.index, p.index)
+                            act_key = (dep_p.index, tank_map[from_t].index, tank_map[to_t].index, p.index)
+                            solution_dict.transfer[act_key] = prob.transfer_weight_variables[sol_key].X
+
+    # Binary variable: Tank contains salmon in period
+    for t in solution_module.tanks:
+        for p in env.periods:
+            if p.index in prod_cycle_idxs:
+                sol_key = (t.index, p.index)
+                act_key = (tank_map[t].index, p.index)
+                solution_dict.contains_salmon[act_key] = round(prob.contains_salmon_variables[sol_key].X)
+                # if p.index == max(prod_cycle_idxs):
+                #     assert abs(prob.contains_salmon_variables[key].X) > 1e-4
+
+    # Binary variable: Smolt is deployed in module in period
+    for dep_p in env.plan_release_periods:
+        if dep_p.index in prod_cycle_idxs:
+            sol_key = (solution_module.index, dep_p.index)
+            act_key = (actual_module.index, dep_p.index)
+            solution_dict.did_deploy[act_key] = round(prob.smolt_deployed_variables[sol_key].X)
+
+    # Binary variable: Salmon is extracted from tank in period
+    for t in solution_module.tanks:
+        for p in env.periods:
+            if p.index in prod_cycle_idxs:
+                sol_key = (t.index, p.index)
+                act_key = (tank_map[t].index, p.index)
+                solution_dict.did_extract[act_key] = round(prob.salmon_extracted_variables[sol_key].X)
+
+    # Binary variable: Salmon is transferred to tank in period
+    if prob.allow_transfer:
+        for t in solution_module.tanks:
+            if len(t.transferable_from) > 0:
+                for p in env.periods:
+                    if p.index in prod_cycle_idxs:
+                        sol_key = (t.index, p.index)
+                        act_key = (tank_map[t].index, p.index)
+                        solution_dict.did_transfer[act_key] = round(prob.salmon_transferred_variables[sol_key].X)
+
+    return solution_dict
+
+
+def set_solution(model: gp.Model, prob: GurobiProblemGenerator, sol: SolutionDict):
+    var_dicts = [
+        (prob.extract_weight_variables, sol.extract),
+        (prob.population_weight_variables, sol.biomass),
+        (prob.transfer_weight_variables, sol.transfer),
+        (prob.contains_salmon_variables, sol.contains_salmon),
+        (prob.smolt_deployed_variables, sol.did_deploy),
+        (prob.salmon_extracted_variables, sol.did_extract),
+        (prob.salmon_transferred_variables, sol.did_transfer),
+    ]
+
+    for vars, vals in var_dicts:
+        for key, var in vars.items():
+            model.addConstr(var == vals.get(key, 0.0))
+
+
+@dataclass
 class DecompCyclesColumn:
     obj_value: float
+    is_initial: bool
+    module: Module
     periods: List[ColumnPeriodInfo]
+    solution_dict: SolutionDict
 
 
 @dataclass
@@ -36,6 +151,32 @@ class ShadowPrices:
     yearly_production: Dict[int, float]
     module_period: Dict[Module, Dict[int, float]]
     module_initial: Dict[Module, float]
+
+
+@dataclass
+class DecompCyclesSolution(SolutionProvider):
+    solution_dict: SolutionDict
+
+    def extract_weight_value(self, depl_period: Period, tank: Tank, period: Period) -> float:
+        return self.solution_dict.extract.get((depl_period, tank, period), 0.0)
+
+    def population_weight_value(self, depl_period: Period, tank: Tank, period: Period) -> float:
+        return self.solution_dict.biomass.get((depl_period, tank, period), 0.0)
+
+    def transfer_weight_value(self, depl_period: Period, from_tank: Tank, to_tank: Tank, period: Period) -> float:
+        return self.solution_dict.transfer.get((depl_period, from_tank, to_tank, period), 0.0)
+
+    def contains_salmon_value(self, tank: Tank, period: Period) -> float:
+        return self.solution_dict.contains_salmon.get((tank, period), 0.0)
+
+    def smolt_deployed_value(self, module: Module, depl_period: Period) -> float:
+        return self.solution_dict.did_deploy.get((module, depl_period), 0.0)
+
+    def salmon_extracted_value(self, tank: Tank, period: Period) -> float:
+        return self.solution_dict.did_extract.get((tank, period), 0.0)
+
+    def salmon_transferred_value(self, tank: Tank, period: Period) -> float:
+        return self.solution_dict.did_transfer.get((tank, period), 0.0)
 
 
 def decomp_cycles_solve(
@@ -70,36 +211,37 @@ def decomp_cycles_solve(
     # Initial production cycles
     init_cstr = {m: rmp.addConstr(gp.LinExpr() == 1, name=f"init_m{m.index}") for m in env.modules}
 
-    master_columns: List[Tuple[Module, DecompCyclesColumn, gp.Var]] = []
+    master_columns: List[Tuple[DecompCyclesColumn, gp.Var]] = []
 
-    def add_column(col: DecompCyclesColumn, modules: List[Module], is_initial: bool):
-        for module in modules:
-            var = rmp.addVar(name=f"lambda_{len(master_columns)}", obj=col.obj_value)
-            master_columns.append((module, col, var))
-            yearly_extraction = defaultdict(float)
+    def add_column(col: DecompCyclesColumn):
+        var = rmp.addVar(name=f"lambda_{len(master_columns)}", obj=col.obj_value)
+        master_columns.append((col, var))
+        yearly_extraction = defaultdict(float)
 
-            for period_info in col.periods:
-                rmp.chgCoeff(bio_cstr[period_info.period], var, period_info.biomass)
-                rmp.chgCoeff(pack_cstr[module][period_info.period], var, 1.0)
-                if is_initial:
-                    rmp.chgCoeff(init_cstr[module], var, 1.0)
+        for period_info in col.periods:
+            rmp.chgCoeff(bio_cstr[period_info.period], var, period_info.biomass)
+            rmp.chgCoeff(pack_cstr[col.module][period_info.period], var, 1.0)
+            if col.is_initial:
+                rmp.chgCoeff(init_cstr[col.module], var, 1.0)
 
-                yearly_extraction[period_years[period_info.period].year] += period_info.extracted
+            yearly_extraction[period_years[period_info.period].year] += period_info.extracted
 
-            for year, extracted in yearly_extraction.items():
-                rmp.chgCoeff(prod_constr[year], var, extracted)
+        for year, extracted in yearly_extraction.items():
+            rmp.chgCoeff(prod_constr[year], var, extracted)
 
     subproblem_generator, pricing_mip = build_subproblem(env, objective_profile, allow_transfer, add_symmetry_breaks)
 
     #
     # ADD INITIAL COLUMNS
     #
-    for module, col in initial_columns(
-        env, objective_profile, allow_transfer, add_symmetry_breaks, initial_deploy_periods
-    ):
-        add_column(col, [module], True)
+    for col in initial_columns(env, objective_profile, allow_transfer, add_symmetry_breaks, initial_deploy_periods):
+        add_column(col)
 
     iter = 0
+    n_initial_subproblems = 0
+    n_subproblems = 0
+    t0 = time.time()
+
     while True:
         iter += 1
         # Optimized relaxed restricted master problem
@@ -123,6 +265,7 @@ def decomp_cycles_solve(
         )
 
         def do_price(p1: int, p2: int, init_m: Module):
+            modules = [init_m] if init_m is not None else env.modules
             constant_price = 0
             is_initial = init_m is not None
 
@@ -156,10 +299,11 @@ def decomp_cycles_solve(
             margin = 1e-4 * max(abs(value), abs(constant_price))
             if value - constant_price > margin:
                 obj_value = subproblem_generator.calculate_core_objective(0)
-                column = extract_column(obj_value, subproblem_generator, pricing_mip, env.modules[0], p1, p2)
-
-                col_modules = [init_m] if init_m is not None else env.modules
-                add_column(column, col_modules, is_initial)
+                for actual_module in modules:
+                    column = extract_column(
+                        obj_value, subproblem_generator, is_initial, env.modules[0], actual_module, p1, p2
+                    )
+                    add_column(column)
 
             subproblem_generator.remove_constraints(pricing_mip, constraints)
             if is_initial:
@@ -170,26 +314,61 @@ def decomp_cycles_solve(
         for module in env.modules:
             if initial_deploy_periods[module] is not None:
                 for p2 in initial_deploy_periods[module].extract_periods:
+                    n_initial_subproblems += 1
                     do_price(planning_start_period.index, p2.index + 1, module)
 
         # Then, we solve all non-initial periods, where the modules are assumed to be interchangable.
         print(f"Iter {iter}: solving all production cycle ranges")
         for p1 in env.periods:
             for p2 in p1.extract_periods:
+                n_subproblems += 1
                 do_price(p1.index, p2.index + 1, None)
 
         # Add new columns
         # If we added at least one column, try again.
         if len(master_columns) == n_columns_before:
+            print(
+                f"No positive reduced cost columns found. Solved {n_initial_subproblems} initial and {n_subproblems} other production plans in {time.time()-t0:.2f} sec."
+            )
             break
 
     # Optimize non-relaxed (binary) problem
-    for _, _, v in master_columns:
+    relaxation_obj = rmp.ObjVal
+
+    for _, v in master_columns:
         v.VType = gp.GRB.BINARY
 
     rmp.optimize()
+    priceandbranch_obj = rmp.ObjVal
+    print(
+        f"GAP {(relaxation_obj/priceandbranch_obj-1.0)*100.0:.3f}%  ({relaxation_obj/1e6:.2f}M  -- {priceandbranch_obj/1e6:.2f}M)"
+    )
 
-    return DecompCyclesSolution()
+    solution_dict = SolutionDict()
+    final_obj = 0.0
+    for col, var in master_columns:
+        if var.X > 0.5:
+            solution_dict.add(col.solution_dict)
+            final_obj += col.obj_value
+
+    # Verify the whole solution in the original non-decomposed problem
+    full_gpg = GurobiProblemGenerator(env, objective_profile, allow_transfer, add_symmetry_breaks)
+    full_model = full_gpg.build_model()
+    
+    # full_model.update()
+    # relaxed_full_model = full_model.relax()
+    # relaxed_full_model.write("unsolvable_lp.mps")
+    # relaxed_full_model.optimize()
+    # print("relaxed objective:", relaxed_full_model.ObjVal)
+
+    set_solution(full_model, full_gpg, solution_dict)
+    full_model.optimize()
+    if full_model.status != gp.GRB.OPTIMAL:
+        full_model.computeIIS()
+        full_model.write("iis.ilp")
+        raise Exception()
+
+    return DecompCyclesSolution(solution_dict)
 
 
 def initial_columns(
@@ -217,38 +396,41 @@ def initial_columns(
 
         p1 = min(environment.periods, key=lambda p: p.index).index
         p2 = p1
-        assert get_module_biomass(subproblem_generator, module, p1) > 1e-5
-        while get_module_biomass(subproblem_generator, module, p2) > 1e-5:
+        assert get_module_biomass(subproblem_generator, module, p1) > 1
+        while get_module_biomass(subproblem_generator, module, p2) > 1:
             p2 += 1
 
-        col = extract_column(0.0, subproblem_generator, model, module, p1, p2)
-        yield (module, col)
+        print("INITIAL EXCTRACT", p1, p2)
+        col = extract_column(0.0, subproblem_generator, True, module, module, p1, p2)
+        yield col
 
 
 def extract_column(
-    obj_value: float, subproblem_generator: GurobiProblemGenerator, model: gp.Model, module: Module, p1: int, p2: int
+    obj_value: float,
+    subproblem_generator: GurobiProblemGenerator,
+    is_initial: bool,
+    solution_module: Module,
+    actual_module: Module,
+    p1: int,
+    p2: int,
 ) -> List[DecompCyclesColumn]:
     env = subproblem_generator.environment
     periods = env.period_indices
-    # print("EXCTRACT COL ", p1, p2, periods[p1], periods[p2])
-    p1_is_deploy = subproblem_generator.smolt_deployed_variable(module, periods[p1]).X > 0.5
 
-    # P1 should either be the first period, or it should be a deploy period
-    # assert p1_is_deploy or p1 == subproblem_generator.environment.periods[0]
-
-    # Extract solution
     periodinfo: List[ColumnPeriodInfo] = []
     for p in range(p1, p2 + 1):
         period = periods[p]
-        biomass = get_module_biomass(subproblem_generator, module, p)
-        extracted = get_module_extracted(subproblem_generator, module, p)
+        biomass = get_module_biomass(subproblem_generator, solution_module, p)
+        extracted = get_module_extracted(subproblem_generator, solution_module, p)
 
         periodinfo.append(ColumnPeriodInfo(period, biomass, extracted))
 
-    # The last period should be empty
     assert periodinfo[-1].biomass < 1e-5
 
-    return DecompCyclesColumn(obj_value, periodinfo)
+    solution_dict = module_solution(
+        subproblem_generator, solution_module, actual_module, [periods[p] for p in range(p1, p2 + 1)]
+    )
+    return DecompCyclesColumn(obj_value, is_initial, actual_module, periodinfo, solution_dict)
 
 
 def get_module_biomass(subproblem_generator: GurobiProblemGenerator, module: Module, period_idx: int) -> float:
@@ -264,14 +446,13 @@ def get_module_biomass(subproblem_generator: GurobiProblemGenerator, module: Mod
 
 def get_module_extracted(subproblem_generator: GurobiProblemGenerator, module: Module, period_idx: int) -> float:
     period = subproblem_generator.environment.period_indices[period_idx]
-    if period_idx not in period.extract_periods:
-        return 0.0
 
     return sum(
         (
             subproblem_generator.extract_weight_variable(dep_p, tank, period).X
             for dep_p in period.deploy_periods
             for tank in module.tanks
+            if period in dep_p.extract_periods
         )
     )
 

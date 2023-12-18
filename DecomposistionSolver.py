@@ -90,15 +90,15 @@ class SubProblem:
 
         profit_columns = []
         if self.use_dp_heuristic:
-            # solution = solve_dp(
-            #     self.problem_generator.environment,
-            #     self.module_index,
-            #     period_biomass_duals,
-            #     yearly_production_duals,
-            #     self.bins,
-            # )
+            solution = solve_dp(
+                self.problem_generator.environment,
+                self.module_index,
+                period_biomass_duals,
+                yearly_production_duals,
+                self.bins,
+            )
 
-            solution = solve_age_dp(module, self.problem_generator, self.model)
+            # solution = solve_age_dp(module, self.problem_generator, self.model)
 
             if solution is not None:
                 production_plan_constraints = self.problem_generator.lock_production_plan_by_nontransfer_num_tanks(

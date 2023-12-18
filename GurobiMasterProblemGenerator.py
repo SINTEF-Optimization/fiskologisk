@@ -5,10 +5,11 @@ from GurobiProblemGenerator import GurobiProblemGenerator
 from GurobiProblemGenerator import ObjectiveProfile
 from MasterColumn import MasterColumn
 from Period import Period
+from SolutionProvider import SolutionProvider
 from Tank import Tank
 from Module import Module
 
-class GurobiMasterProblemGenerator:
+class GurobiMasterProblemGenerator(SolutionProvider):
     """
     Problem generator for the Master Problem in the Dantzig-Wolfe decomposition algorithm applied on the landbased salmon farming MIP problem.
     The generator takes in the setup of the production facility and time periods for the planning horizon,
