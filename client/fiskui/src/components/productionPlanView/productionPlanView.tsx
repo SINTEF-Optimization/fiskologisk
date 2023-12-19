@@ -13,13 +13,15 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
 
     const draw = (solution: SalmonPlanSolution) => {
         // set the dimensions and margins of the graph
-        const margin = { top: 10, right: 30, bottom: 30, left: 60 },
+        const margin = { top: 10, right: 30, bottom: 30, left: 80 },
             legendWidth = 300,
             heightBiomass = 300,
             heightBiomassTitle = 100,
             width = 1200 - margin.left - margin.right,
             height = 600 - margin.top - margin.bottom;
 
+        const MAXPERIOD = solution.planning_horizon.last_ordinary_horizon_period;
+        const PLANNINGPERIOD = MAXPERIOD - solution.planning_horizon.first_period + 1;
 
         // clear any current graphs before drawing a new one: (TODO: optimize this in future. Only redraw if current data has changed in a meaningful way etc)
         d3.select(".prodPlanView").selectAll("svg").remove();
@@ -35,7 +37,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
 
         // Timescale to display months
         const startTime = new Date(2021,2,1)
-        const endTime = new Date((new Date(2021,2,1)).setMonth(startTime.getMonth()+48));
+        const endTime = new Date((new Date(2021,2,1)).setMonth(startTime.getMonth()+PLANNINGPERIOD));
         const xScale = d3.scaleTime()
           .domain([startTime,endTime])
           //.nice()
@@ -43,7 +45,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
 
         // Linear scale to display symbols
         const xScaleLinear = d3.scaleLinear()
-            .domain([solution.planning_horizon.first_period - 1, solution.planning_horizon.first_period + solution.planning_horizon.years * 12 + 1])
+            .domain([solution.planning_horizon.first_period - 1, MAXPERIOD + 1])
             .range([0, width]);
 
         // Append x scale
@@ -74,41 +76,44 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         svg.append("g").attr("transform", "translate(-10,0)").call(d3.axisLeft(yScale));
 
         const symbolsMap: Map<string, { x: number, y: string, symbol: Symbol }> = new Map();
-        const setSymbol = (x: number, y: string, symbol: Symbol) => symbolsMap.set(`${x},${y}`, { x, y, symbol });
+        const setSymbol = (x: number, y: string, symbol: Symbol) => {
+            if (x>=MAXPERIOD) return;
+            symbolsMap.set(`${x},${y}`, { x, y, symbol });
+        }
         const maybeSetSymbol = (x: number, y: string, symbol: Symbol) => {
+            if (x>=MAXPERIOD) return;
             if (!symbolsMap.has(`${x},${y}`)) setSymbol(x, y, symbol);
-
         };
 
         for (const cycle of solution.production_cycles) {
             for (const tank_cycle of cycle.tank_cycles) {
-            const this_tank = tankRefToName({ module_idx: cycle.module, tank_idx: tank_cycle.tank });
+                const this_tank = tankRefToName({ module_idx: cycle.module, tank_idx: tank_cycle.tank });
 
-            // Add start cause symbol.
-            if (tank_cycle.start_cause === StartCause.Transfer) {
-                const transfer = tank_cycle.transfer!;
-                const from_tank = tankRefToName({ module_idx: cycle.module, tank_idx: transfer.from_tank });
-                setSymbol(transfer.period, from_tank, Symbol.TransferOut);
-                setSymbol(transfer.period, this_tank, Symbol.TransferIn);
-            } else if (tank_cycle.start_cause === StartCause.PrePlanningDeploy) {
-                setSymbol(tank_cycle.start_period - 1, this_tank, Symbol.BeforePlanningHorizon);
-            } else if (tank_cycle.start_cause === StartCause.Deploy) {
-                setSymbol(tank_cycle.start_period, this_tank, Symbol.Deploy);
-            }
+                // Add start cause symbol.
+                if (tank_cycle.start_cause === StartCause.Transfer) {
+                    const transfer = tank_cycle.transfer!;
+                    const from_tank = tankRefToName({ module_idx: cycle.module, tank_idx: transfer.from_tank });
+                    setSymbol(transfer.period, from_tank, Symbol.TransferOut);
+                    setSymbol(transfer.period, this_tank, Symbol.TransferIn);
+                } else if (tank_cycle.start_cause === StartCause.PrePlanningDeploy) {
+                    setSymbol(tank_cycle.start_period - 1, this_tank, Symbol.BeforePlanningHorizon);
+                } else if (tank_cycle.start_cause === StartCause.Deploy) {
+                    setSymbol(tank_cycle.start_period, this_tank, Symbol.Deploy);
+                }
 
-            // Add end cause symbol
-            if (tank_cycle.end_cause === EndCause.Harvest) {
-                setSymbol(tank_cycle.end_period, this_tank, Symbol.Harvest);
-            } else if (tank_cycle.end_cause === EndCause.PostSmolt) {
-                setSymbol(tank_cycle.end_period, this_tank, Symbol.PostSmolt);
-            } else if (tank_cycle.end_cause === EndCause.PlanningHorizonExtension) {
-                setSymbol(tank_cycle.end_period + 1, this_tank, Symbol.AfterPlanningHorizon);
-            }
+                // Add end cause symbol
+                if (tank_cycle.end_cause === EndCause.Harvest) {
+                    setSymbol(tank_cycle.end_period, this_tank, Symbol.Harvest);
+                } else if (tank_cycle.end_cause === EndCause.PostSmolt) {
+                    setSymbol(tank_cycle.end_period, this_tank, Symbol.PostSmolt);
+                } else if (tank_cycle.end_cause === EndCause.PlanningHorizonExtension) {
+                    setSymbol(tank_cycle.end_period + 1, this_tank, Symbol.AfterPlanningHorizon);
+                }
 
-            // Add active/growing symbols to all active periods that have no other symbol
-            for (const period of tank_cycle.period_biomasses) {
-                maybeSetSymbol(period.period,this_tank, Symbol.Growing);
-            }
+                // Add active/growing symbols to all active periods that have no other symbol
+                for (const period of tank_cycle.period_biomasses) {
+                    maybeSetSymbol(period.period, this_tank, Symbol.Growing);
+                }
             }
         }
 
@@ -231,17 +236,20 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         // Keep track of total biomass. First track biomass for each period for each tank (in each module). Structure is Map<tankid, Array<number>>.
         const tankBiomassData: Map<number, Array<number>> = new Map();
 
-        // Total mass is just an array of length 48. (since we know we will have exactly 48 months)
-        const totalBiomassData = Array<number>(48).fill(0);
+        // Total mass is just an array of length PLANINGPERIOD.
+        const totalBiomassData = Array<number>(PLANNINGPERIOD).fill(0);
         for (const cycle of solution.production_cycles) {
             for (const tank_cycle of cycle.tank_cycles) {
-                const existingTankArray = tankBiomassData.get(tank_cycle.tank) ?? Array<number>(48).fill(0);
+                const existingTankArray = tankBiomassData.get(tank_cycle.tank) ?? Array<number>(PLANNINGPERIOD).fill(0);
                 for (const period_masses of tank_cycle.period_biomasses) {
+                    // Skip any period outside of the 48 months:
+                    if (period_masses.period >= MAXPERIOD) continue;
+
                     // For tank
-                    existingTankArray[period_masses.period-24] = period_masses.biomass;
+                    existingTankArray[period_masses.period-solution.planning_horizon.first_period] = period_masses.biomass;
 
                     // For total
-                    totalBiomassData[period_masses.period-24] = totalBiomassData[period_masses.period-24] + period_masses.biomass;
+                    totalBiomassData[period_masses.period-solution.planning_horizon.first_period] = totalBiomassData[period_masses.period-solution.planning_horizon.first_period] + period_masses.biomass;
                 }
                 tankBiomassData.set(tank_cycle.tank, existingTankArray);
             }
@@ -273,15 +281,23 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                 .attr("fill", "none")
                 .attr("stroke", "steelblue")
                 .attr("stroke-width", 1.5)
-                .attr("d", graphBiomass(totalBiomassData.map((value,index) => { return [index+24, value]})));
+                .attr("d", graphBiomass(totalBiomassData.map((value,index) => { return [index+solution.planning_horizon.first_period, value]})));
 
-
+        const biomassLine = biomass.append("line")
+            .attr("x1", 20)  //<<== change your code here
+            .attr("y1", 0)
+            .attr("x2", 20)  //<<== and here
+            .attr("y2", heightBiomass)
+            .style("stroke-width", 2)
+            .style("stroke", "red")
+            .style("fill", "none")
+            .style("display", "none");
 
         // ************************************** DYNAMICALLY UPDATE GRAPH BASED ON MOUSE POSITION *****************************************************
 
         // Handles mouse event: checks what tank is "selected" and updates data in biomass graph
 
-        const onMouseover = (tankIndex: number) => {
+        const onMouseover = (e: MouseEvent, tankIndex: number) => {
             const biomassData = tankBiomassData.get(tankIndex);
             if (biomassData){
                 // Update scale
@@ -295,9 +311,11 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                     .attr("fill", "none")
                     .attr("stroke", "steelblue")
                     .attr("stroke-width", 1.5)
-                    .attr("d", graphBiomass(biomassData.map((value,index) => { return [index+24, value]})));
+                    .attr("d", graphBiomass(biomassData.map((value,index) => { return [index+solution.planning_horizon.first_period, value]})));
 
                 biomassTitle.text("Biomass tank " + tankIndex);
+
+                biomassLine.style("display", null).attr("x1", d3.pointer(e)[0]).attr("x2", d3.pointer(e)[0])
             }
         }
 
@@ -313,45 +331,31 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                 .attr("fill", "none")
                 .attr("stroke", "steelblue")
                 .attr("stroke-width", 1.5)
-                .attr("d", graphBiomass(totalBiomassData.map((value,index) => { return [index+24, value]})));
+                .attr("d", graphBiomass(totalBiomassData.map((value,index) => { return [index+solution.planning_horizon.first_period, value]})));
 
             biomassTitle.text("Total biomass");
+            biomassLine.style("display", "none");
         }
 
-        // One rectangle for each row. First
-        // First row:
-        svg.append("rect")
-            .attr('height', height/(2*tankBiomassData.size-1))
-            .attr("width", width)
-            .attr('fill', 'none')
-            .attr('opacity', '0.5')
-            .attr('pointer-events', 'all')
-            .on('mouseover', function () {
-                d3.select(this).attr('fill','maroon');
-                onMouseover(0);
-            })
-            .on('mouseout', function () {
-                d3.select(this).attr('fill','none');
-                onMouseOut();
-            });
-
-        for (let i = 0; i<tankBiomassData.size-1; i++) {
-            svg.append("rect")
-                .attr('height', height/(tankBiomassData.size-1))
+        // Add rectangles over each row. Will detect mouseevents to display corresponding biomass graph and highlight the row.
+        svg.selectAll("rect")
+            .data(yDomain)
+            .join("rect")
+                .attr('y', d => `${yScale(d)}`)
+                .attr('height', `${yScale.step()}`)
+                .attr('transform', `translate(0,${-(yScale.step()/2)})`)
                 .attr("width", width)
-                .attr('fill','none')
+                .attr('fill', 'none')
                 .attr('opacity', '0.5')
-                .attr('y', i*(height/(tankBiomassData.size-1))+height/(2*tankBiomassData.size-1)-i*3.2) //TODO: This is pretty hacky. Should use the y-scale to properly extract dimensions.
                 .attr('pointer-events', 'all')
-                .on('mouseover', function () {
+                .on('mousemove', function (e,d) {
                     d3.select(this).attr('fill','maroon');
-                    onMouseover(i+1);
+                    onMouseover(e,yDomain.indexOf(d));
                 })
                 .on('mouseout', function () {
                     d3.select(this).attr('fill','none');
                     onMouseOut();
                 });
-        }
     }
 
     return <div className="prodPlanView"/>

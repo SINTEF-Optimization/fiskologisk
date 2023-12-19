@@ -14,8 +14,9 @@ export type Module = {
 export type PlanningHorizon = {
     deploy_periods: number[],
     first_period: number,
+    last_ordinary_horizon_period: number,
     first_year: number,
-    years: number
+    last_period: number
 }
 
 export type ProductionCycle = {
