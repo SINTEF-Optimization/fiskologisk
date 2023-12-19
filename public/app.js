@@ -70,6 +70,14 @@ async function main() {
         y: height / 2,
         speed: 0.2
     });
+
+    var i = 0;
+    while (i<1000) {
+        console.log(i);
+    }
+
+    // Kill spinner
+    svg.call(spinner,[]);
 }
 
 main();
