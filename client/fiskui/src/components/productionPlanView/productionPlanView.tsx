@@ -16,6 +16,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         const margin = { top: 10, right: 30, bottom: 30, left: 60 },
             legendWidth = 300,
             heightBiomass = 300,
+            heightBiomassTitle = 100,
             width = 1200 - margin.left - margin.right,
             height = 600 - margin.top - margin.bottom;
 
@@ -27,7 +28,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         const svg = d3.select(".prodPlanView")
             .append("svg")
             .attr("width", width + margin.left + margin.right + legendWidth)
-            .attr("height", height + margin.top + 2*margin.bottom + heightBiomass)
+            .attr("height", height + margin.top + 2*margin.bottom + heightBiomass + heightBiomassTitle)
             .append("g")
             .attr("transform",
             "translate(" + margin.left + "," + margin.top + ")");
@@ -217,6 +218,16 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
 
         // ************************************** BIOMASS GRAPH *****************************************************
 
+        // Add title
+        const biomassTitle = svg
+            .append("g")
+            .attr("transform", "translate(0," + (height+margin.bottom) + ")")
+            .append("text")
+                .style("text-anchor", "middle")
+                .style("font-size", "2em")
+                .attr("transform", `translate(${width/2}, ${heightBiomassTitle/2}) `)
+                .text("Total biomass");
+
         // Keep track of total biomass. First track biomass for each period for each tank (in each module). Structure is Map<tankid, Array<number>>.
         const tankBiomassData: Map<number, Array<number>> = new Map();
 
@@ -239,7 +250,7 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         // Create grouph for the biomass graph
         const biomass = svg
             .append("g")
-            .attr("transform", "translate(0," + (height+margin.bottom) + ")");
+            .attr("transform", "translate(0," + (height+heightBiomassTitle+margin.bottom) + ")");
 
         // Append x scale
         biomass.append("g").attr("transform", "translate(0," + heightBiomass + ")").call(d3.axisBottom(xScale));
@@ -285,6 +296,8 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                     .attr("stroke", "steelblue")
                     .attr("stroke-width", 1.5)
                     .attr("d", graphBiomass(biomassData.map((value,index) => { return [index+24, value]})));
+
+                biomassTitle.text("Biomass tank " + tankIndex);
             }
         }
 
@@ -301,6 +314,8 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                 .attr("stroke", "steelblue")
                 .attr("stroke-width", 1.5)
                 .attr("d", graphBiomass(totalBiomassData.map((value,index) => { return [index+24, value]})));
+
+            biomassTitle.text("Total biomass");
         }
 
         // One rectangle for each row. First
