@@ -8,11 +8,12 @@ const height = 600 - margin.top - margin.bottom;
 // append the svg object to the body
 const svg = d3.select("body")
     .append("svg")
-    .attr("width", width + margin.left + margin.right + legendWidth)
-    .attr("height", height + margin.top + 2*margin.bottom + heightBiomass + heightBiomassTitle)
-    .append("g")
-    .attr("transform",
-    "translate(" + margin.left + "," + margin.top + ")");
+    .attr("viewBox", [0, 0, width, height])
+    // .attr("width", width + margin.left + margin.right + legendWidth)
+    // .attr("height", height + margin.top + 2*margin.bottom + heightBiomass + heightBiomassTitle)
+    // .append("g")
+    // .attr("transform",
+    // "translate(" + margin.left + "," + margin.top + ")");
 
 // This stateless component renders a static "wheel" made of circles,
 // and rotates it depending on the value of props.angle.
