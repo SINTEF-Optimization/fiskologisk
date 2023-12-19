@@ -72,8 +72,6 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
         // Append y scale
         svg.append("g").attr("transform", "translate(-10,0)").call(d3.axisLeft(yScale));
 
-        // TODO background color on deploy periods.
-
         const symbolsMap: Map<string, { x: number, y: string, symbol: Symbol }> = new Map();
         const setSymbol = (x: number, y: string, symbol: Symbol) => symbolsMap.set(`${x},${y}`, { x, y, symbol });
         const maybeSetSymbol = (x: number, y: string, symbol: Symbol) => {
@@ -272,15 +270,11 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
 
         // Handles mouse event: checks what tank is "selected" and updates data in biomass graph
 
-        let currentTankIndex = 0;
-
         const onMouseover = (tankIndex: number) => {
-            if (tankIndex === currentTankIndex)
-                return;
             const biomassData = tankBiomassData.get(tankIndex);
             if (biomassData){
                 // Update scale
-                yScaleBiomass.domain([0, Math.max(...biomassData)])
+                yScaleBiomass.domain([0, Math.max(...biomassData)]) //TODO: the vertical line disappears after update for some reason..?
                 yAxisBiomass.call(d3.axisLeft(yScaleBiomass));
 
                 // Remove old data and graph new
@@ -292,7 +286,6 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
                     .attr("stroke-width", 1.5)
                     .attr("d", graphBiomass(biomassData.map((value,index) => { return [index+24, value]})));
             }
-            currentTankIndex = tankIndex;
         }
 
         const onMouseOut = () => {
@@ -316,26 +309,31 @@ export const ProductionPlanView = (props: ProductionPlanViewProps) => {
             .attr('height', height/(2*tankBiomassData.size-1))
             .attr("width", width)
             .attr('fill', 'none')
+            .attr('opacity', '0.5')
             .attr('pointer-events', 'all')
-            .on('mouseover', (e, d) => {
+            .on('mouseover', function () {
+                d3.select(this).attr('fill','maroon');
                 onMouseover(0);
             })
-            .on('mouseout', (e) => {
+            .on('mouseout', function () {
+                d3.select(this).attr('fill','none');
                 onMouseOut();
             });
 
         for (let i = 0; i<tankBiomassData.size-1; i++) {
-            svg
-            .append("rect")
+            svg.append("rect")
                 .attr('height', height/(tankBiomassData.size-1))
                 .attr("width", width)
-                .attr('fill', 'none')
-                .attr('y', i*(height/(tankBiomassData.size-1))+height/(2*tankBiomassData.size-1))
+                .attr('fill','none')
+                .attr('opacity', '0.5')
+                .attr('y', i*(height/(tankBiomassData.size-1))+height/(2*tankBiomassData.size-1)-i*3.2) //TODO: This is pretty hacky. Should use the y-scale to properly extract dimensions.
                 .attr('pointer-events', 'all')
-                .on('mousemove', (e, d) => {
+                .on('mouseover', function () {
+                    d3.select(this).attr('fill','maroon');
                     onMouseover(i+1);
                 })
-                .on('mouseout', (e) => {
+                .on('mouseout', function () {
+                    d3.select(this).attr('fill','none');
                     onMouseOut();
                 });
         }
