@@ -1,9 +1,18 @@
-const margin = { top: 10, right: 30, bottom: 30, left: 80 },
-        legendWidth = 300,
-        heightBiomass = 300,
-        heightBiomassTitle = 100,
-        width = 1200 - margin.left - margin.right,
-        height = 600 - margin.top - margin.bottom;
+const margin = { top: 10, right: 30, bottom: 30, left: 80 };
+const legendWidth = 300;
+const heightBiomass = 300;
+const heightBiomassTitle = 100;
+const width = 1200 - margin.left - margin.right;
+const height = 600 - margin.top - margin.bottom;
+
+// append the svg object to the body
+const svg = d3.select("body")
+    .append("svg")
+    .attr("width", width + margin.left + margin.right + legendWidth)
+    .attr("height", height + margin.top + 2*margin.bottom + heightBiomass + heightBiomassTitle)
+    .append("g")
+    .attr("transform",
+    "translate(" + margin.left + "," + margin.top + ")");
 
 // This stateless component renders a static "wheel" made of circles,
 // and rotates it depending on the value of props.angle.
@@ -54,22 +63,17 @@ var spinner = (function (){
     });
 }());
 
-
-// append the svg object to the body
-const svg = d3.select("body")
-    .append("svg")
-    .attr("width", width + margin.left + margin.right + legendWidth)
-    .attr("height", height + margin.top + 2*margin.bottom + heightBiomass + heightBiomassTitle)
-    .append("g")
-    .attr("transform",
-    "translate(" + margin.left + "," + margin.top + ")");
-
 async function main() {
     // Create spinner
     svg.call(spinner, {
         x: width / 2,
         y: height / 2,
         speed: 0.2
-    })
+    });
 
+    var e = new Date().getTime() + (5 * 1000);
+    while (new Date().getTime() <= e) {}
+
+    // Destroy spinner
+    svg.call(spinner,[]);
 }
