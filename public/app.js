@@ -8,7 +8,6 @@ const height = 600 - margin.top - margin.bottom;
 // append the svg object to the body
 const svg = d3.select("body")
     .append("svg")
-    .attr("viewBox", [0, 0, width, height])
     .attr("width", width + margin.left + margin.right + legendWidth)
     .attr("height", height + margin.top + 2*margin.bottom + heightBiomass + heightBiomassTitle)
     .append("g")
@@ -78,3 +77,5 @@ async function main() {
     // Destroy spinner
     svg.call(spinner,[]);
 }
+
+main();
