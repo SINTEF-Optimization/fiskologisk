@@ -70,12 +70,6 @@ async function main() {
         y: height / 2,
         speed: 0.2
     });
-
-    var e = new Date().getTime() + (5 * 1000);
-    while (new Date().getTime() <= e) {}
-
-    // Destroy spinner
-    svg.call(spinner,[]);
 }
 
 main();
