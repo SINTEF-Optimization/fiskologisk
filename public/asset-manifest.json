@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/static/css/main.f855e6bc.css",
-    "main.js": "/static/js/main.c59d3b0c.js",
-    "static/js/787.a26b4ed1.chunk.js": "/static/js/787.a26b4ed1.chunk.js",
-    "index.html": "/index.html",
-    "main.f855e6bc.css.map": "/static/css/main.f855e6bc.css.map",
-    "main.c59d3b0c.js.map": "/static/js/main.c59d3b0c.js.map",
-    "787.a26b4ed1.chunk.js.map": "/static/js/787.a26b4ed1.chunk.js.map"
+    "main.css": "/fiskologisk/static/css/main.f855e6bc.css",
+    "main.js": "/fiskologisk/static/js/main.3cf374b4.js",
+    "static/js/787.a26b4ed1.chunk.js": "/fiskologisk/static/js/787.a26b4ed1.chunk.js",
+    "index.html": "/fiskologisk/index.html",
+    "main.f855e6bc.css.map": "/fiskologisk/static/css/main.f855e6bc.css.map",
+    "main.3cf374b4.js.map": "/fiskologisk/static/js/main.3cf374b4.js.map",
+    "787.a26b4ed1.chunk.js.map": "/fiskologisk/static/js/787.a26b4ed1.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.f855e6bc.css",
-    "static/js/main.c59d3b0c.js"
+    "static/js/main.3cf374b4.js"
   ]
 }
