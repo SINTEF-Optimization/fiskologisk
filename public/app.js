@@ -5,6 +5,9 @@ const heightBiomassTitle = 100;
 const width = 1200 - margin.left - margin.right;
 const height = 600 - margin.top - margin.bottom;
 
+// Initialize empty data
+var data = null;
+
 // append the svg object to the body
 const svg = d3.select("body")
     .append("svg")
@@ -63,6 +66,20 @@ var spinner = (function (){
     });
 }());
 
+async function parseFiles() {
+    const fs = require('fs')
+
+    const dir = await fs.promises.opendir('dist/data')
+
+    for await (const dirent of dir) {
+        console.log(dirent.name)
+    }
+
+    ls('.').catch(console.error)
+    // const problem = await fetch("instances/M2_T4_Y4_E14_P18/CoreProblem.json").then(res => res.json());
+    // const solution = await fetch("instances/M2_T4_Y4_E14_P18/M2_T4_Y4_I1.json").then(res => res.json()) as SalmonPlanSolution;
+}
+
 async function main() {
     // Create spinner
     svg.call(spinner, {
@@ -70,6 +87,11 @@ async function main() {
         y: height / 2,
         speed: 0.2
     });
+
+    data = await parseFiles();
+
+    // Kill spinner
+    svg.call(spinner, []);
 }
 
 main();
