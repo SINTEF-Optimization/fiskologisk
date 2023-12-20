@@ -6,13 +6,7 @@ import { HomePage } from './pages/home';
 
 function App() {
   return (
-    <BrowserRouter>
-      <FiskologiskApiServiceProvider>
-        <Routes>
-          <Route path="/" element={<HomePage/>}/>
-        </Routes>
-      </FiskologiskApiServiceProvider>
-    </BrowserRouter>
+    <HomePage></HomePage>
   );
 }
 

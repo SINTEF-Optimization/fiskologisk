@@ -1,65 +1,66 @@
-import { useEffect, useRef, useState } from "react";
-import { FiskologiskOptimizationForm } from "../components/fiskologiskOptimizationForm"
-import { FiskologiskResults } from "../components/fiskologiskResults"
-import axios from "axios";
+import { useEffect, useState } from "react";
 import { SalmonPlanSolution } from "../components/productionPlanView/models";
-import { useFiskologiskApiService } from "../services/fiskologiskApi/fiskologiskApiService";
+import { ProductionPlanPresenter } from "../components/productionPlanPresenter/productionPlanPresenter";
+import { DotPulse } from "@uiball/loaders";
 
 export enum ResultState {
     Loading,
     Loaded,
-    Infeasible
+}
+
+interface ProblemSpecDir {
+    dir: string,
+    modules: number,
+    smolt_price: number,
+    tank_volume: number
+}
+
+export interface ProblemSpec {
+    modules: number,
+    smolt_price: number,
+    tank_volume: number
 }
 
 export const HomePage = () => {
     const [resultState, setResultState] = useState<ResultState>(ResultState.Loading);
-    const [resultData, setResultData] = useState<any | null>(null)
-    const activePollingTimer = useRef<NodeJS.Timeout>(); // In case we exit or something strange happens while waiting for a polling call or whatever
-    const fiskologiskApi = useFiskologiskApiService();
+    const [resultData, setResultData] = useState<Map<string,SalmonPlanSolution>>(new Map<string,SalmonPlanSolution>())
+    const [moduleValues,setModuleValues] = useState<Array<number>>([]);
+    const [smoltPriceValues,setSmoltPriceValues] = useState<Array<number>>([]);
+    const [tankVolumeValues,setTankVolumeValues] = useState<Array<number>>([]);
 
     useEffect(() => {
-        if (resultState === ResultState.Loading) {
-            activePollingTimer.current = setTimeout(fetchData, 1000);
-            return () => clearInterval(activePollingTimer.current);
+        const getData = async () => {
+
+            const problemFetch = await fetch("problems.json");
+            const problems = await problemFetch.json() as Array<ProblemSpecDir>
+
+            const problemMap: Map<string,SalmonPlanSolution> = new Map<string,SalmonPlanSolution>();
+            const modVals: Array<number> = [];
+            const smoltVals: Array<number> = [];
+            const volVals: Array<number> = [];
+            for (var problem of problems) {
+                const response = await fetch(`data/${problem.dir}/results_iter3.json`);
+                const json = await response.json();
+                problemMap.set(`${problem.modules}-${problem.smolt_price}-${problem.tank_volume}`, json as SalmonPlanSolution);
+                if (!modVals.includes(problem.modules)) modVals.push(problem.modules);
+                if (!smoltVals.includes(problem.smolt_price)) smoltVals.push(problem.smolt_price);
+                if (!volVals.includes(problem.tank_volume)) volVals.push(problem.tank_volume);
+            }
+
+            setModuleValues(modVals);
+            setSmoltPriceValues(smoltVals);
+            setTankVolumeValues(volVals);
+            setResultData(problemMap);
+            setResultState(ResultState.Loaded);
         }
-    });
+        getData();
+    },[]);
 
-    const fetchData = () => {
-        if (resultData !== null) {
-            return
-        }
-        console.log("Polling for fiskologisk results data");
-
-        fiskologiskApi.ResultsApi.get().then((response) => {
-            if (response["status"] === "computing") {
-                activePollingTimer.current = setTimeout(fetchData, 1000)
-            }
-            else if (response["status"] === "failed") {
-                setResultState(ResultState.Infeasible);
-            }
-            else {
-                setResultState(ResultState.Loaded);
-                setResultData(response);
-            }
-
-        });
-
+    switch (resultState) {
+        case ResultState.Loaded:
+            return <ProductionPlanPresenter data={resultData} moduleValues={moduleValues} smoltPriceValues={smoltPriceValues} tankVolumeValues={tankVolumeValues}  />
+        case ResultState.Loading:
+        default:
+            return (<div><DotPulse/></div>)
     }
-
-    const onNewCalculationSubmitted = () => {
-        setResultData(null);
-        setResultState(ResultState.Loading);
-    }
-
-    const triggerInfeasibleSolution = () => {
-        setResultData(null);
-        setResultState(ResultState.Infeasible)
-    }
-
-    return (
-        <div>
-            <FiskologiskOptimizationForm onNewCalculationSubmitted={onNewCalculationSubmitted} triggerInfeasibleSolution={triggerInfeasibleSolution}/>
-            <FiskologiskResults resultState={resultState} resultData={resultData}/>
-        </div>
-    )
 }

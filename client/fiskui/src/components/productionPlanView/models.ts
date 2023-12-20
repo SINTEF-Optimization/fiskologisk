@@ -1,7 +1,7 @@
 export type SalmonPlanSolution = {
     modules: Module[],
+    pre_planning_horizon: PrePlanningHorizon,
     planning_horizon: PlanningHorizon,
-    pre_planning_horizon: PlanningHorizon,
     production_cycles: ProductionCycle[],
 }
 
@@ -11,12 +11,19 @@ export type Module = {
     tank_transfers: { from: number, to: number }[]
 }
 
-export type PlanningHorizon = {
+export type PrePlanningHorizon = {
+    first_year: number,
+    first_period: number,
+    last_period: number
     deploy_periods: number[],
+}
+
+export type PlanningHorizon = {
+    first_year: number,
     first_period: number,
     last_ordinary_horizon_period: number,
-    first_year: number,
     last_period: number
+    deploy_periods: number[],
 }
 
 export type ProductionCycle = {
