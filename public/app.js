@@ -67,8 +67,6 @@ var spinner = (function (){
 }());
 
 async function parseFiles() {
-    const fs = require('fs')
-
     const dir = await fs.promises.opendir('dist/data')
 
     for await (const dirent of dir) {
