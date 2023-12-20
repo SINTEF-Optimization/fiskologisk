@@ -120,6 +120,7 @@ class GurobiProblemGenerator(SolutionProvider):
         """
 
         model = gp.Model()
+        model.Params.Threads = 2
         self.add_variables(model)
         self.add_objective(model)
         self.add_constraints(model)

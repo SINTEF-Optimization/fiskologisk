@@ -2,7 +2,7 @@ import os, json, subprocess, multiprocessing
 
 cases = []
 
-for n_modules in [2,3,4,5,6,7]:
+for n_modules in [1,2,3,4,5,6,7]:
     for smolt_price in [140, 160, 180]:
         for tank_volume in [2500,3500,5000]:
             #for psp in [0.8, 1.0, 1.2]:
@@ -55,8 +55,9 @@ def run_case(case):
     decomposition_method :int
     if n_modules <= 1:
         decomposition_method = 0
-    elif n_modules <= 2:
-        decomposition_method = 1
+    # decomposition #1 can become very slow on 2-modules in some cases.
+    #elif n_modules <= 2:
+    #    decomposition_method = 1
     else:
         decomposition_method = 2
 

@@ -187,6 +187,7 @@ def decomp_cycles_solve(
 ) -> DecompCyclesSolution:
     # (relaxed) Restricted master problem
     rmp = gp.Model()
+    rmp.Params.Threads = 2
     rmp.ModelSense = gp.GRB.MAXIMIZE
 
     planning_start_period = min(env.periods, key=lambda p: p.index)
@@ -311,7 +312,7 @@ def decomp_cycles_solve(
                 raise Exception()
 
             value = pricing_mip.ObjVal
-            margin = 1e-4 * max(abs(value), abs(constant_price))
+            margin = 1e-4 * max(abs(value), abs(constant_price), 1)
             if value - constant_price > margin:
                 obj_value = subproblem_generator.calculate_core_objective(0)
                 for actual_module in modules:
@@ -396,7 +397,7 @@ def initial_columns(
 
     subproblem_generator = old_gmpg.sub_problem_generator()
     model = subproblem_generator.build_model()
-    model.params.SolutionLimit = 1
+    model.Params.SolutionLimit = 1
     model.optimize()
 
     for module, init_p in initial_deploy_periods.items():

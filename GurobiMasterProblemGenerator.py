@@ -124,7 +124,7 @@ class GurobiMasterProblemGenerator(SolutionProvider):
         """
 
         model = gp.Model()
-        model.Params.Threads = 1
+        model.Params.Threads = 2
 
         # Empty set of columns and variables
         self.columns = {}

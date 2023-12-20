@@ -58,6 +58,7 @@ class SubProblem:
         """Builds the MIP model for the column generation subproblem"""
 
         self.model = self.problem_generator.build_module_subproblemn(self.module_index)
+        self.model.Params.LogToConsole = 1
 
     def solve(
         self,
