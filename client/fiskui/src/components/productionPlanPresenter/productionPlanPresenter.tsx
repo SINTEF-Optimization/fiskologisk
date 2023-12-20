@@ -17,8 +17,6 @@ export const ProductionPlanPresenter = (props: ProductionPlanPresenterProps) => 
         smolt_price:props.smoltPriceValues[0],
         tank_volume:props.tankVolumeValues[0]});
 
-    useEffect(()=>{console.log(props.data)},[]);
-
     const onModuleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const newModValue = parseInt(event.target.value,10);
         setActiveSpec({...activeSpec, modules:newModValue});
