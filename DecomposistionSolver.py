@@ -90,6 +90,12 @@ class SubProblem:
         module = self.problem_generator.environment.modules[self.module_index]
 
         profit_columns = []
+
+        #
+        # There are two ways to solve the single-module subproblem. The first one is a dynamic programming
+        # heuristic, written in Rust. The second one, below, is the same as the full MIP formulation but with only one module.
+        #
+
         if self.use_dp_heuristic:
             solution = solve_dp(
                 self.problem_generator.environment,
@@ -98,8 +104,6 @@ class SubProblem:
                 yearly_production_duals,
                 self.bins,
             )
-
-            # solution = solve_age_dp(module, self.problem_generator, self.model)
 
             if solution is not None:
                 production_plan_constraints = self.problem_generator.lock_production_plan_by_nontransfer_num_tanks(
@@ -129,7 +133,11 @@ class SubProblem:
                     if report_suboptimality is not None:
                         report_suboptimality(relaxdp_obj_value, mip_obj_value)
 
+        # Since the DP algorithm is approximate, we can fall back to the standard single-module formulation
+        # when the DP stops generating positive reduced cost columns.
         polish = self.polish_dp_with_mip and len(profit_columns) == 0
+
+        # Run the single-module MIP as the pricing sub-problem.
         if not self.use_dp_heuristic or polish:
             self.model.Params.Cutoff = convex_dual
             self.model.optimize()
@@ -294,6 +302,7 @@ class DecomposistionSolver:
                 yearly_production_duals,
                 convex_duals,
             ) = self.solve_master()
+            
             log_times.append("Iteration %s, LP Master (sec)\t%s" % (iteration, time.time() - t0))
             if self.print_level >= 2:
                 self.problem_generator.drop_dual_values(self.master_model)

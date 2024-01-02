@@ -35,8 +35,14 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
 
     sol_prov: SolutionProvider = None
     time0 = time.time()
+
+    # Decomposition 0 is the full MIP formulation
+    # Decomposition 1 is the column generation model where the columns are single-module production plans
+    # Decomposition 2 is the column generation model where the columns are production cycles (deploy to harvest of a single module).
+
     if use_decomposistion == 2:
         sol_prov, model = decomp_cycles_solve(environment, objective, allow_transfer, add_symmetry_breaks)
+
     elif use_decomposistion == 1:
         gmpg = GurobiMasterProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gmpg
@@ -44,6 +50,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
         decomp_solver = DecomposistionSolver(gmpg)
         decomp_solver.build_model(use_dp_heuristic)
         decomp_solver.optimize()
+        
     else:
         gpg = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gpg
@@ -306,6 +313,10 @@ if __name__ == "__main__":
     objective = ObjectiveProfile.PROFIT
     allow_transfer = True
     add_symmetry_breaks = False
+
+    # Decomposition 0 is the full MIP formulation
+    # Decomposition 1 is the column generation model where the columns are single-module production plans
+    # Decomposition 2 is the column generation model where the columns are production cycles (deploy to harvest of a single module).
     use_decomposistion = 0
     max_single_modules = 0
     fixed_values_file = ""

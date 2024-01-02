@@ -185,6 +185,20 @@ def decomp_cycles_solve(
     allow_transfer: bool = True,
     add_symmetry_breaks: bool = False,
 ) -> DecompCyclesSolution:
+    
+    # Column generation MIP model of the full production planning problem.
+    # Columns represent a single production cycle for a single module. The first period
+    # of a production cycle is the only period where biomass is deployed into one or more tanks.
+    # The last period of a production cycle is when all tanks are empty.
+    # Constraints on the master problem are:
+    #  - At most one production cycle can be active in a module in each time period.
+    #  - For modules that are in the middle of a production cycle in the initial period,
+    #    exactly one initial production cycle is selected.
+    #  - The maximum biomass constraint needs to be fulfilled for all selected production cycles 
+    #    within a single time period.
+    #  - The maximum yearly production constraint needs to be fulfilled for all selected production
+    #    cycles within a year.
+
     # (relaxed) Restricted master problem
     rmp = gp.Model()
     rmp.Params.Threads = 2
@@ -216,6 +230,8 @@ def decomp_cycles_solve(
         if p is not None
     }
 
+    # The list of associated data with each column added to the master problem.
+    # This list is extended by the `add_column` function below.
     master_columns: List[Tuple[DecompCyclesColumn, gp.Var]] = []
 
     def add_column(col: DecompCyclesColumn):
@@ -234,6 +250,8 @@ def decomp_cycles_solve(
         for year, extracted in yearly_extraction.items():
             rmp.chgCoeff(prod_constr[year], var, extracted)
 
+    # The pricing subproblem MIP is shared between all modules. Initial conditions
+    # are added and removed to this MIP as needed.
     subproblem_generator, pricing_mip = build_subproblem(env, objective_profile, allow_transfer, add_symmetry_breaks)
 
     #
@@ -247,6 +265,7 @@ def decomp_cycles_solve(
     n_subproblems = 0
     t0 = time.time()
 
+    # Column generation loop.
     while True:
         iter += 1
         # Optimized relaxed restricted master problem
@@ -255,7 +274,7 @@ def decomp_cycles_solve(
 
         assert rmp.Status == gp.GRB.OPTIMAL
 
-        # Get shadow prices
+        # Extract the shadow prices for the current relaxed master problem.
         shadow_prices = ShadowPrices(
             period_biomass={p.index: c.Pi for p, c in bio_cstr.items()},
             yearly_production={y: c.Pi for y, c in prod_constr.items()},
@@ -269,6 +288,8 @@ def decomp_cycles_solve(
             pricing_mip, shadow_prices.period_biomass, shadow_prices.yearly_production
         )
 
+        # The following function solves the pricing problem and adds columns to the master problem
+        # for a single relevant period interval.
         def do_price(p1: int, p2: int, init_m: Module):
             modules = [init_m] if init_m is not None else env.modules
             constant_price = 0
@@ -325,6 +346,7 @@ def decomp_cycles_solve(
             if is_initial:
                 subproblem_generator.remove_initial_value_constraints(pricing_mip)
 
+        # There are two types of relevant periods: initial and non-initial.
         # First, we solve for module-specific initial production cycle columns.
         print(f"Iter {iter}: solving initial production cycles")
         for module in env.modules:
@@ -378,6 +400,8 @@ def decomp_cycles_solve(
         full_model.write("iis.ilp")
         raise Exception()
 
+    # For simplicity, we just return the full MIP model here, since we have already solved it with a fixed
+    # assignment to verify the correctness of our solution.
     return full_gpg, full_model
 
 
@@ -388,6 +412,12 @@ def initial_columns(
     add_symmetry_breaks: bool,
     initial_deploy_periods: Dict[Module, Period | None],
 ):
+    
+    # Solve the full MIP formulation until we find the first
+    # feasible solution. Use this to extract a set of initial
+    # columns, since these are required for the master problem to 
+    # be feasible.
+
     old_gmpg = GurobiMasterProblemGenerator(
         environment,
         objective_profile=objective_profile,
@@ -410,7 +440,6 @@ def initial_columns(
         while get_module_biomass(subproblem_generator, module, p2) > 1:
             p2 += 1
 
-        print("INITIAL EXCTRACT", p1, p2)
         col = extract_column(0.0, subproblem_generator, True, module, module, p1, p2)
         yield col
 
@@ -488,7 +517,7 @@ def build_subproblem(
     # This is a bit of a hack: we re-use the first ("old") decomposition solver to produce
     # a subproblem for a single module, but we remove the constraints setting the initial
     # biomass, so the model becomes the same for all modules. (initial biomasses are enabled
-    # and disabled below)
+    # and disabled as needed in the `do_price` function)
 
     old_gmpg = GurobiMasterProblemGenerator(
         environment,

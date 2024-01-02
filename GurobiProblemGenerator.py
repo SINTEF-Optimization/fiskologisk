@@ -83,7 +83,8 @@ class GurobiProblemGenerator(SolutionProvider):
     yearly_production_expressions: dict[int, gp.LinExpr]
     """The expressions for the total mass of salmon extracted as post smolt or harvest within a production year. Key is year"""
 
-    initial_value_constraints: List[gp.Constr] | None = None
+    _initial_value_constraints: List[gp.Constr] | None = None
+    """[private] List of MIP constraints related to the initial state of the tanks."""
 
     def __init__(
         self,
@@ -624,8 +625,8 @@ class GurobiProblemGenerator(SolutionProvider):
                avoid building a new subproblem for every module.
         """
 
-        assert self.initial_value_constraints == None
-        self.initial_value_constraints = []
+        assert self._initial_value_constraints == None
+        self._initial_value_constraints = []
 
         # If we are using the constrain_module parameter, check that it makes sense (the tanks should be similar).
         if constrain_module == -1:
@@ -644,13 +645,13 @@ class GurobiProblemGenerator(SolutionProvider):
                         self.population_weight_variable(dep_p, t2, first_p) == init_w,
                         name="initial_population_%s,%s" % (dep_p.index, t2.index),
                     )
-                    self.initial_value_constraints.append(c)
+                    self._initial_value_constraints.append(c)
 
     def remove_initial_value_constraints(self, model: gp.Model) -> None:
-        assert self.initial_value_constraints is not None
-        for c in self.initial_value_constraints:
+        assert self._initial_value_constraints is not None
+        for c in self._initial_value_constraints:
             model.remove(c)
-        self.initial_value_constraints = None
+        self._initial_value_constraints = None
 
     def add_smolt_deployment_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds the smolt deployment constraints to the MIP problem
