@@ -5,10 +5,11 @@ from GurobiProblemGenerator import GurobiProblemGenerator
 from GurobiProblemGenerator import ObjectiveProfile
 from MasterColumn import MasterColumn
 from Period import Period
+from SolutionProvider import SolutionProvider
 from Tank import Tank
 from Module import Module
 
-class GurobiMasterProblemGenerator:
+class GurobiMasterProblemGenerator(SolutionProvider):
     """
     Problem generator for the Master Problem in the Dantzig-Wolfe decomposition algorithm applied on the landbased salmon farming MIP problem.
     The generator takes in the setup of the production facility and time periods for the planning horizon,
@@ -123,6 +124,7 @@ class GurobiMasterProblemGenerator:
         """
 
         model = gp.Model()
+        model.Params.Threads = 2
 
         # Empty set of columns and variables
         self.columns = {}
@@ -334,6 +336,22 @@ class GurobiMasterProblemGenerator:
         for m in self.environment.modules:
             convex_duals[m.index] = self.module_convexity_constraints[m.index].Pi
 
+        print("CONVEX DUALS")
+        for k,v in convex_duals.items():
+            print(f" - {k} {v}")
+
+
+        other_constraint_sets = [
+            self.set_contains_salmon_constraints, 
+            self.set_smolt_deployed_constraints, 
+            self.set_salmon_extracted_constraints, 
+            self.set_salmon_transferred_constraints]
+        
+        for c_set in other_constraint_sets:
+            for _k,v in c_set.items():
+                if abs(v.Pi) > 1e-5:
+                    print(f"Warning: constraint {v.Name} has shadow price {v.Pi}")
+
         return period_biomass_duals, yearly_production_duals, convex_duals
 
     def validate_integer_values(self) -> bool:
@@ -523,7 +541,6 @@ class GurobiMasterProblemGenerator:
             - model: 'gp.Model' The MIP model holding the MIP problem
         """
     
-        print("objective = %s"%model.ObjVal)
         for m in self.environment.modules:
             for idx in range(len(self.columns[m.index])):
                 key = (m.index, idx)
@@ -550,6 +567,7 @@ class GurobiMasterProblemGenerator:
         for key, value in self.salmon_transferred_values.items():
             if value > 0.001:
                 print("salmon_transferred(%s) = %s"%(key, value))
+        print("objective = %s"%model.ObjVal)
 
     def drop_dual_values(self, model: gp.Model) -> None:
         """Prints the objective and the dual values of the constraints for the last solution.
@@ -558,7 +576,6 @@ class GurobiMasterProblemGenerator:
             - model: 'gp.Model' The MIP model holding the MIP problem
         """
 
-        print("objective = %s"%model.ObjVal)
         for m in self.environment.modules:
             for idx in range(len(self.columns[m.index])):
                 key = (m.index, idx)
@@ -570,3 +587,4 @@ class GurobiMasterProblemGenerator:
             print("dual of yearly_production_constraint(%s) = %s"%(key, constr.Pi))
         for key, constr in self.module_convexity_constraints.items():
             print("dual of module_convexity_constraint(%s) = %s"%(key, constr.Pi))
+        print("objective = %s"%model.ObjVal)

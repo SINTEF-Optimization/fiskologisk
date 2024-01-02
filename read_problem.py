@@ -23,9 +23,9 @@ def read_core_problem(dir : str, local_file_path : str) -> Environment:
     """
 
     environment = Environment()
-    file_path = os.path.join(dir, local_file_path)
+    file_path = os.path.join(dir, local_file_path.replace("\\","/"))
     file_dir = os.path.dirname(file_path)
-
+ 
     with open(file_path, "r") as input_file:
         data = json.load(input_file)
 
@@ -154,7 +154,8 @@ def read_periods(environment : Environment, periods_json) -> None:
 
         if is_planning or is_deploy:
             period = Period(month_idx, month_in_year, is_deploy, is_planning)
-
+            environment.period_indices[period.index] = period
+            
             if is_deploy:
                 environment.release_periods.append(period)
                 if is_planning:
@@ -168,6 +169,7 @@ def read_periods(environment : Environment, periods_json) -> None:
                     environment.years.append(year)
                 year.periods.append(period)
                 environment.periods.append(period)
+                
 
         month_in_year += 1
         if month_in_year == 12:
@@ -263,7 +265,7 @@ def read_csv_table(dir : str, local_file_path : str) -> list[list[float]]:
 
     result = []
 
-    file_path = os.path.join(dir, local_file_path)
+    file_path = os.path.join(dir, local_file_path.replace("\\","/"))
     with open(file_path, "r") as csv_file:
         csv_reader = csv.reader(csv_file)
         for row in list(csv_reader)[1:]:

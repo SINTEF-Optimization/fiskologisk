@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import List, Tuple
 import gurobipy as gp
 from gurobipy import GRB
 from enum import Enum
@@ -10,6 +11,7 @@ from Module import Module
 from Tank import Tank
 from MasterColumn import MasterColumn
 
+
 class ObjectiveProfile(Enum):
     """
     Profile for setup of objective in MIP problem
@@ -20,6 +22,7 @@ class ObjectiveProfile(Enum):
 
     BIOMASS = 2
     """Maximize weight of extracted post-smolt and harvested salmon from production facility"""
+
 
 class GurobiProblemGenerator(SolutionProvider):
     """
@@ -80,7 +83,17 @@ class GurobiProblemGenerator(SolutionProvider):
     yearly_production_expressions: dict[int, gp.LinExpr]
     """The expressions for the total mass of salmon extracted as post smolt or harvest within a production year. Key is year"""
 
-    def __init__(self, environment: Environment, objective_profile: ObjectiveProfile = ObjectiveProfile.PROFIT, allow_transfer: bool = True, add_symmetry_breaks: bool = False, max_single_modules: int = 0) -> None:
+    _initial_value_constraints: List[gp.Constr] | None = None
+    """[private] List of MIP constraints related to the initial state of the tanks."""
+
+    def __init__(
+        self,
+        environment: Environment,
+        objective_profile: ObjectiveProfile = ObjectiveProfile.PROFIT,
+        allow_transfer: bool = True,
+        add_symmetry_breaks: bool = False,
+        max_single_modules: int = 0,
+    ) -> None:
         self.environment = environment
         self.objective_profile = objective_profile
         self.allow_transfer = allow_transfer
@@ -108,11 +121,12 @@ class GurobiProblemGenerator(SolutionProvider):
         """
 
         model = gp.Model()
+        model.Params.Threads = 2
         self.add_variables(model)
         self.add_objective(model)
         self.add_constraints(model)
         return model
-    
+
     def build_module_subproblemn(self, module_idx: int) -> gp.Model:
         """Builds the column generationg sub problem of the given module
 
@@ -124,9 +138,15 @@ class GurobiProblemGenerator(SolutionProvider):
         """
 
         model = gp.Model()
+        model.Params.LogToConsole = 0
+        model.Params.Cuts = 0
+        model.Params.Heuristics = 0
+        model.Params.Threads = 2
+
         self.add_variables(model, module_idx)
         self.core_objective_expression = self.create_core_objective_expression(module_idx)
         self.add_constraints(model, module_idx)
+
         return model
 
     def get_master_column(self, module_idx: int, objective_value: float, best_sol: bool) -> MasterColumn:
@@ -205,7 +225,17 @@ class GurobiProblemGenerator(SolutionProvider):
                         var = self.salmon_transferred_variables[key]
                         salmon_transferred_values[key] = round(var.X if best_sol else var.Xn)
 
-        return MasterColumn(module_idx, objective_value, extract_weight_values, population_weight_values, transfer_weight_values, contains_salmon_values, smolt_deployed_values, salmon_extracted_values, salmon_transferred_values)
+        return MasterColumn(
+            module_idx,
+            objective_value,
+            extract_weight_values,
+            population_weight_values,
+            transfer_weight_values,
+            contains_salmon_values,
+            smolt_deployed_values,
+            salmon_extracted_values,
+            salmon_transferred_values,
+        )
 
     def add_fixed_values(self, model: gp.Model, fixed_values_json) -> None:
         """Reads information on the fixed values to be set for some of the variables in the MIP problem for landbased salmon farming
@@ -239,7 +269,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def add_variables(self, model: gp.Model, module_idx: int = -1) -> None:
         """Generates all variables for the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the variables into.
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -251,7 +281,7 @@ class GurobiProblemGenerator(SolutionProvider):
             for p in dep_p.extract_periods:
                 for t in self.environment.get_tanks(module_idx):
                     key = (dep_p.index, t.index, p.index)
-                    var = model.addVar(name = "e_%s,%s,%s"%key)
+                    var = model.addVar(name="e_%s,%s,%s" % key)
                     self.extract_weight_variables[key] = var
 
         # Continous variable: Population weight from deploy period in tank at period
@@ -260,7 +290,7 @@ class GurobiProblemGenerator(SolutionProvider):
             for p in dep_p.periods_after_deploy:
                 for t in self.environment.get_tanks(module_idx):
                     key = (dep_p.index, t.index, p.index)
-                    var = model.addVar(name = "x_%s,%s,%s"%key)
+                    var = model.addVar(name="x_%s,%s,%s" % key)
                     self.population_weight_variables[key] = var
 
         # Continous variable: Transferred salmon from deploy period from tank to tank in period
@@ -271,7 +301,7 @@ class GurobiProblemGenerator(SolutionProvider):
                     for from_t in self.environment.get_tanks(module_idx):
                         for to_t in from_t.transferable_to:
                             key = (dep_p.index, from_t.index, to_t.index, p.index)
-                            var = model.addVar(name = "y_%s,%s,%s,%s"%key)
+                            var = model.addVar(name="y_%s,%s,%s,%s" % key)
                             self.transfer_weight_variables[key] = var
 
         # Binary variable: Tank contains salmon in period
@@ -279,7 +309,7 @@ class GurobiProblemGenerator(SolutionProvider):
         for t in self.environment.get_tanks(module_idx):
             for p in self.environment.periods:
                 key = (t.index, p.index)
-                var = model.addVar(name = "alpha_%s,%s"%key, vtype = GRB.BINARY)
+                var = model.addVar(name="alpha_%s,%s" % key, vtype=GRB.BINARY)
                 self.contains_salmon_variables[key] = var
 
         # Binary variable: Smolt is deployed in module in period
@@ -287,7 +317,7 @@ class GurobiProblemGenerator(SolutionProvider):
         for m in self.environment.get_modules(module_idx):
             for dep_p in self.environment.plan_release_periods:
                 key = (m.index, dep_p.index)
-                var = model.addVar(name = "delta_%s,%s"%key, vtype = GRB.BINARY)
+                var = model.addVar(name="delta_%s,%s" % key, vtype=GRB.BINARY)
                 self.smolt_deployed_variables[key] = var
 
         # Binary variable: Salmon is extracted from tank in period
@@ -295,7 +325,7 @@ class GurobiProblemGenerator(SolutionProvider):
         for t in self.environment.get_tanks(module_idx):
             for p in self.environment.periods:
                 key = (t.index, p.index)
-                var = model.addVar(name = "epsilon_%s,%s"%key, vtype = GRB.BINARY)
+                var = model.addVar(name="epsilon_%s,%s" % key, vtype=GRB.BINARY)
                 self.salmon_extracted_variables[key] = var
 
         # Binary variable: Salmon is transferred to tank in period
@@ -305,7 +335,7 @@ class GurobiProblemGenerator(SolutionProvider):
                 if len(t.transferable_from) > 0:
                     for p in self.environment.periods:
                         key = (t.index, p.index)
-                        var = model.addVar(name = "sigma_%s,%s"%key, vtype = GRB.BINARY)
+                        var = model.addVar(name="sigma_%s,%s" % key, vtype=GRB.BINARY)
                         self.salmon_transferred_variables[key] = var
 
         # Binary variable: Module is active in period or previous period
@@ -314,12 +344,12 @@ class GurobiProblemGenerator(SolutionProvider):
             for m in self.environment.modules:
                 for dep_p in self.environment.plan_release_periods:
                     key = (m.index, dep_p.index)
-                    var = model.addVar(name = "phi_%s,%s"%key, vtype = GRB.BINARY)
+                    var = model.addVar(name="phi_%s,%s" % key, vtype=GRB.BINARY)
                     self.module_active_variables[key] = var
 
     def add_objective(self, model: gp.Model) -> None:
         """Builds and sets the objective function of the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to set the objective function for
         """
@@ -327,9 +357,14 @@ class GurobiProblemGenerator(SolutionProvider):
         obj_expr = self.create_core_objective_expression()
         model.setObjective(obj_expr, GRB.MAXIMIZE)
 
-    def set_subproblem_objective(self, model: gp.Model, period_biomass_dual_values: dict[int, float], yearly_production_dual_values: dict[int, float]) -> None:
+    def set_subproblem_objective(
+        self,
+        model: gp.Model,
+        period_biomass_dual_values: dict[int, float],
+        yearly_production_dual_values: dict[int, float],
+    ) -> None:
         """Builds and sets the objective function of the column generation subproblem
-        
+
         args:
             - model: 'gp.Model' The MIP model to set the objective function for
             - period_biomass_dual_values: 'dict[int, float]' The dual values from the master problem of the expressions for the total mass of salmon in the tanks at a period. Key is period
@@ -351,7 +386,7 @@ class GurobiProblemGenerator(SolutionProvider):
     def create_core_objective_expression(self, module_idx: int = -1) -> gp.LinExpr:
         """Creates and returns the core expression for the objective function of the MIP problem.
         For a column generation problem, this is the same as the objective without added constraints weighted by dual values of the relaxed regulatory constraints
-        
+
         args:
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
         """
@@ -366,7 +401,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def create_profit_objective_expression(self, module_idx: int = -1) -> gp.LinExpr:
         """Creates the expression for the profit maximizing objective function of the MIP problem
-        
+
         args:
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
         """
@@ -378,7 +413,6 @@ class GurobiProblemGenerator(SolutionProvider):
         weight_classes = self.environment.weight_classes
         for dep_p in self.environment.release_periods:
             for t in self.environment.get_tanks(module_idx):
-
                 # Post-smolt
                 for p in dep_p.postsmolt_extract_periods:
                     weight_distribution = dep_p.periods_after_deploy_data[p.index].weight_distribution
@@ -404,7 +438,6 @@ class GurobiProblemGenerator(SolutionProvider):
         # Feeding cost
         for dep_p in self.environment.release_periods:
             for t in self.environment.get_tanks(module_idx):
-
                 # Population weight variable for all periods
                 for p in dep_p.periods_after_deploy:
                     cost = dep_p.periods_after_deploy_data[p.index].feed_cost
@@ -425,18 +458,19 @@ class GurobiProblemGenerator(SolutionProvider):
         # Tank operation
         for p in self.environment.periods:
             for t in self.environment.get_tanks(module_idx):
-
                 # Minimum cost for operating a tank
                 obj_expr.addTerms(-parameters.min_tank_cost, self.contains_salmon_variable(t, p))
 
                 for dep_p in p.deploy_periods:
-                    obj_expr.addTerms(-parameters.marginal_increase_pumping_cost, self.population_weight_variable(dep_p, t, p))
+                    obj_expr.addTerms(
+                        -parameters.marginal_increase_pumping_cost, self.population_weight_variable(dep_p, t, p)
+                    )
 
         return obj_expr
 
     def create_biomass_objective_expression(self, module_idx: int = -1, neg_deploy_period: int = -1) -> gp.LinExpr:
         """Creates the expression for the extracted mass maximizing objective function of the MIP problem
-        
+
         args:
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
             - neg_deploy_period: 'int' If not -1, extracted mass of salmon deployed in this period is subtracted in the objective.
@@ -455,7 +489,7 @@ class GurobiProblemGenerator(SolutionProvider):
     def calculate_core_objective(self, module_idx: int) -> float:
         """Calculates and returns the core objective of the currently selected solution to the MIP problem.
         For a column generation problem, this is the same as the objective without added constraints weighted by dual values of the relaxed regulatory constraints
-        
+
         args:
             - module_idx: 'int' The index of the module to calculate the objective for
         """
@@ -470,7 +504,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def calculate_profit_objective(self, module_idx: int) -> float:
         """Calculates and returns the profit maximizing objective of the currently selected solution to the MIP problem.
-        
+
         args:
             - module_idx: 'int' The index of the module to calculate the objective for
         """
@@ -482,7 +516,6 @@ class GurobiProblemGenerator(SolutionProvider):
         weight_classes = self.environment.weight_classes
         for dep_p in self.environment.release_periods:
             for t in self.environment.get_tanks(module_idx):
-
                 # Post-smolt
                 for p in dep_p.postsmolt_extract_periods:
                     weight_distribution = dep_p.periods_after_deploy_data[p.index].weight_distribution
@@ -508,7 +541,6 @@ class GurobiProblemGenerator(SolutionProvider):
         # Feeding cost
         for dep_p in self.environment.release_periods:
             for t in self.environment.get_tanks(module_idx):
-
                 # Population weight variable for all periods
                 for p in dep_p.periods_after_deploy:
                     cost = dep_p.periods_after_deploy_data[p.index].feed_cost
@@ -529,7 +561,6 @@ class GurobiProblemGenerator(SolutionProvider):
         # Tank operation
         for p in self.environment.periods:
             for t in self.environment.get_tanks(module_idx):
-
                 # Minimum cost for operating a tank
                 obj -= parameters.min_tank_cost * self.contains_salmon_variable(t, p).Xn
 
@@ -540,7 +571,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def calculate_biomass_objective(self, module_idx: int) -> float:
         """Calculates and returns the extracted mass maximizing objective of the currently selected solution to the MIP problem.
-        
+
         args:
             - module_idx: 'int' The index of the module to calculate the objective for
         """
@@ -556,7 +587,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def add_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds all the constraints to the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -568,6 +599,10 @@ class GurobiProblemGenerator(SolutionProvider):
         if self.allow_transfer:
             self.add_salmon_transfer_constraints(model, module_idx)
         self.add_salmon_density_constraints(model, module_idx)
+
+        # TODO why not add the regulatory constraints in the B&P subproblem as well?
+        #      This could fix the problem of non-convergence of the one-module problem.
+
         if module_idx == -1:
             self.add_regulatory_constraints(model)
         else:
@@ -579,24 +614,48 @@ class GurobiProblemGenerator(SolutionProvider):
         if self.max_single_modules > 0:
             self.add_max_single_modules_constraints(model)
 
-    def add_initial_value_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
+    def add_initial_value_constraints(self, model: gp.Model, module_idx: int = -1, constrain_module: int = -1) -> None:
         """Adds the smolt deployment constraints to the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
+            - constrain_module: 'int' If building a subproblem, we can choose to apply the initial value
+               constraint to a different module than the constraint was for. This is a workaround to 
+               avoid building a new subproblem for every module.
         """
+
+        assert self._initial_value_constraints == None
+        self._initial_value_constraints = []
+
+        # If we are using the constrain_module parameter, check that it makes sense (the tanks should be similar).
+        if constrain_module == -1:
+            constrain_module = module_idx
+
+        assert len(self.environment.get_tanks(module_idx)) == len(self.environment.get_tanks(constrain_module))
 
         first_p = self.environment.periods[0]
         for dep_p in first_p.deploy_periods:
             if dep_p != first_p:
-                for t in self.environment.get_tanks(module_idx):
-                    init_w = t.initial_weight if t.initial_weight > 0 and t.initial_deploy_period == dep_p.index else 0.0
-                    model.addConstr(self.population_weight_variable(dep_p, t, first_p) == init_w, name = "initial_population_%s,%s"%(dep_p.index, t.index))
+                for t1, t2 in zip(self.environment.get_tanks(module_idx), self.environment.get_tanks(constrain_module)):
+                    init_w = (
+                        t1.initial_weight if t1.initial_weight > 0 and t1.initial_deploy_period == dep_p.index else 0.0
+                    )
+                    c = model.addConstr(
+                        self.population_weight_variable(dep_p, t2, first_p) == init_w,
+                        name="initial_population_%s,%s" % (dep_p.index, t2.index),
+                    )
+                    self._initial_value_constraints.append(c)
+
+    def remove_initial_value_constraints(self, model: gp.Model) -> None:
+        assert self._initial_value_constraints is not None
+        for c in self._initial_value_constraints:
+            model.remove(c)
+        self._initial_value_constraints = None
 
     def add_smolt_deployment_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds the smolt deployment constraints to the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -615,17 +674,24 @@ class GurobiProblemGenerator(SolutionProvider):
                 for t in m.tanks:
                     deployed_smolt_expr.addTerms(1.0, self.population_weight_variable(dep_p, t, dep_p))
                     if not first:
-                        model.addConstr(delta + self.contains_salmon_variable(t, prev_p) <= 1, name = "empty_deploy_tank_%s,%s,%s"%(m.index, t.index, dep_p.index))
+                        model.addConstr(
+                            delta + self.contains_salmon_variable(t, prev_p) <= 1,
+                            name="empty_deploy_tank_%s,%s,%s" % (m.index, t.index, dep_p.index),
+                        )
                     elif t.initial_use:
-                        model.addConstr(delta == 0, name = "empty_deploy_tank_%s,%s,%s"%(m.index, t.index, dep_p.index))
+                        model.addConstr(delta == 0, name="empty_deploy_tank_%s,%s,%s" % (m.index, t.index, dep_p.index))
 
                 # Set weight range for deployed smolt (5.3, 6.2)
-                model.addConstr(min_w * delta <= deployed_smolt_expr, name = "min_smolt_dep_%s,%s"%(m.index, dep_p.index))
-                model.addConstr(deployed_smolt_expr <= max_w * delta, name = "max_smolt_dep_%s,%s"%(m.index, dep_p.index))
+                model.addConstr(
+                    min_w * delta <= deployed_smolt_expr, name="min_smolt_dep_%s,%s" % (m.index, dep_p.index)
+                )
+                model.addConstr(
+                    deployed_smolt_expr <= max_w * delta, name="max_smolt_dep_%s,%s" % (m.index, dep_p.index)
+                )
 
     def add_extraction_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds the extraction constraints to the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -640,16 +706,19 @@ class GurobiProblemGenerator(SolutionProvider):
                 # Set max limit for extracted salmon (5.5, 6.4)
                 for dep_p in p.deploy_periods_for_extract:
                     extr_w_expr.addTerms(1.0, self.extract_weight_variable(dep_p, t, p))
-                model.addConstr(extr_w_expr <= max_w * epsilon, name = "max_extract_%s,%s"%(t.index, p.index))
+                model.addConstr(extr_w_expr <= max_w * epsilon, name="max_extract_%s,%s" % (t.index, p.index))
 
                 # Empty tank after extraction (5.6, 6.5)
                 if p != self.environment.periods[-1]:
                     next_p = next(np for np in self.environment.periods if np.index == p.index + 1)
-                    model.addConstr(self.contains_salmon_variable(t, next_p) + epsilon <= 1, name = "empty_extract_tank_%s,%s"%(t.index, p.index))
+                    model.addConstr(
+                        self.contains_salmon_variable(t, next_p) + epsilon <= 1,
+                        name="empty_extract_tank_%s,%s" % (t.index, p.index),
+                    )
 
     def add_salmon_transfer_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds the salmon transfer constraints to the MIP problem, only used when transfer is allowed
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -670,18 +739,26 @@ class GurobiProblemGenerator(SolutionProvider):
 
                     # Only transfer to empty tanks (5.7, 6.6)
                     if not first:
-                        model.addConstr(sigma + self.contains_salmon_variable(t, prev_p) <= 1, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
+                        model.addConstr(
+                            sigma + self.contains_salmon_variable(t, prev_p) <= 1,
+                            name="transfer_to_empty_%s,%s" % (t.index, p.index),
+                        )
                     elif t.initial_use:
-                        model.addConstr(sigma == 0, name = "transfer_to_empty_%s,%s"%(t.index, p.index))
+                        model.addConstr(sigma == 0, name="transfer_to_empty_%s,%s" % (t.index, p.index))
 
                     # Tanks can not receive and extract same period (5.8, 6.7)
-                    model.addConstr(sigma + self.salmon_extracted_variable(t, p) <= 1, name = "no_extract_if_transfer_%s,%s"%(t.index, p.index))
+                    model.addConstr(
+                        sigma + self.salmon_extracted_variable(t, p) <= 1,
+                        name="no_extract_if_transfer_%s,%s" % (t.index, p.index),
+                    )
 
                     for from_t in t.transferable_from:
-
                         # Do not empty tank transferred from (5.9, 6.8)
                         if not last:
-                            model.addConstr(sigma - self.contains_salmon_variable(from_t, next_p) <= 0, name = "transfer_from_not_empty_%s,%s,%s"%(t.index, from_t.index, p.index))
+                            model.addConstr(
+                                sigma - self.contains_salmon_variable(from_t, next_p) <= 0,
+                                name="transfer_from_not_empty_%s,%s,%s" % (t.index, from_t.index, p.index),
+                            )
 
                         # Set weight range for transferred salmon (5.10, 6.9)
                         transf_w_expr = gp.LinExpr()
@@ -689,12 +766,16 @@ class GurobiProblemGenerator(SolutionProvider):
                             transf_w_expr.addTerms(1.0, self.transfer_weight_variable(dep_p, from_t, t, p))
 
                         # model.addConstr(gp.quicksum([1,0 * self.transfer_weight_variable(dep_p, from_t, t, p) for dep_p in p.deploy_periods_for_transfer]) <= transf_w_expr, name = "min_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
-                        model.addConstr(min_w_expr <= transf_w_expr, name = "min_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
-                        model.addConstr(transf_w_expr <= max_w_expr, name = "max_transfer_%s,%s,%s"%(t.index, from_t.index, p.index))
+                        model.addConstr(
+                            min_w_expr <= transf_w_expr, name="min_transfer_%s,%s,%s" % (t.index, from_t.index, p.index)
+                        )
+                        model.addConstr(
+                            transf_w_expr <= max_w_expr, name="max_transfer_%s,%s,%s" % (t.index, from_t.index, p.index)
+                        )
 
     def add_salmon_density_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds the salmon density and tank activation constraints to the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -704,7 +785,6 @@ class GurobiProblemGenerator(SolutionProvider):
         for t in self.environment.get_tanks(module_idx):
             inv_vol = t.inverse_volume
             for p in self.environment.periods:
-
                 # Set limit on tank density (5.11, 6.10)
                 weight_expr = gp.LinExpr()
                 for dep_p in p.deploy_periods:
@@ -713,33 +793,40 @@ class GurobiProblemGenerator(SolutionProvider):
                     for dep_p in p.deploy_periods_for_transfer:
                         for from_t in t.transferable_from:
                             weight_expr.addTerms(inv_vol, self.transfer_weight_variable(dep_p, from_t, t, p))
-                model.addConstr(weight_expr <= max_den * self.contains_salmon_variable(t, p), name = "max_density_%s,%s"%(t.index, p.index))
+                model.addConstr(
+                    weight_expr <= max_den * self.contains_salmon_variable(t, p),
+                    name="max_density_%s,%s" % (t.index, p.index),
+                )
 
     def add_regulatory_constraints(self, model: gp.Model) -> None:
         """Adds the regulatory constraints to the MIP problem.
         Should not be called for the column generation sub problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
         """
 
         # Set limit on total biomass each period (5.12)
-        max_production_tanks = len(self.environment.tanks) if self.max_single_modules == 0 else self.max_single_modules * len(self.environment.modules[0].tanks)
+        max_production_tanks = (
+            len(self.environment.tanks)
+            if self.max_single_modules == 0
+            else self.max_single_modules * len(self.environment.modules[0].tanks)
+        )
         regulation_rescale = max_production_tanks / self.environment.parameters.tanks_in_regulations
         max_mass = self.environment.parameters.max_total_biomass * regulation_rescale
         for p in self.environment.periods:
             weight_expr = self.create_period_biomass_expression(p)
-            model.addConstr(weight_expr <= max_mass, name = "max_biomass_%s"%p.index)
+            model.addConstr(weight_expr <= max_mass, name="max_biomass_%s" % p.index)
 
         # Set limit on yearly production (5.13)
         max_prod = self.environment.parameters.max_yearly_production * regulation_rescale
         for y in self.environment.years:
             extr_w_expr = self.create_yearly_production_expression(y)
-            model.addConstr(extr_w_expr <= max_prod, name = "max_year_prod_%s"%y.year)
+            model.addConstr(extr_w_expr <= max_prod, name="max_year_prod_%s" % y.year)
 
     def create_regulatory_expressions(self, module_idx: int) -> None:
         """Creates and stores the expressions for the relaxed regulatory constraints in the column generation subproblem.
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module the subproblem is built for
@@ -754,7 +841,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def create_period_biomass_expression(self, period: Period, module_idx: int = -1) -> gp.LinExpr:
         """Creates the expression for the total mass of salmon in the tanks at a period
-        
+
         args:
             - period: 'Period' The period to build the expression for
             - module_idx: 'int' The index of the module of the tanks to sum the mass over, or -1 for all modules.
@@ -768,7 +855,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def create_yearly_production_expression(self, year: Year, module_idx: int = -1) -> gp.LinExpr:
         """Creates the expression for the total mass of salmon extracted as post smolt or harvest within a production year
-        
+
         args:
             - year: 'Year' The year to build the expression for
             - module_idx: 'int' The index of the module of the tanks to sum the mass over, or -1 for all modules.
@@ -783,7 +870,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
     def add_biomass_development_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds the biomass development constraints to the MIP problem
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -805,7 +892,7 @@ class GurobiProblemGenerator(SolutionProvider):
 
                         # Add updated weight from salmon at start of period (5.14, 5.15, 5.16, 5.17, 6.11, 6.12, 6.13, 6.14)
                         next_w_expr.addTerms(growth_factor, self.population_weight_variable(dep_p, t, p))
-                        
+
                         if is_transfer and self.allow_transfer:
                             # Subtract weight from salmon transfered out during period (5.15, 5.16, 6.12, 6.13)
                             for to_t in t.transferable_to:
@@ -813,22 +900,31 @@ class GurobiProblemGenerator(SolutionProvider):
 
                             # Add weight from salmon transfered in during period (5.15, 5.16, 6.12, 6.13)
                             for from_t in t.transferable_from:
-                                next_w_expr.addTerms(transf_growth_factor, self.transfer_weight_variable(dep_p, from_t, t, p))
-                        
+                                next_w_expr.addTerms(
+                                    transf_growth_factor, self.transfer_weight_variable(dep_p, from_t, t, p)
+                                )
+
                         if is_extract:
                             # Subtract weight from salmon extracted during period (5.16, 5.17, 6.13, 6.14)
                             next_w_expr.addTerms(-growth_factor, self.extract_weight_variable(dep_p, t, p))
                         next_p = next(np for np in dep_p.periods_after_deploy if np.index == p.index + 1)
-                        model.addConstr(self.population_weight_variable(dep_p, t, next_p) == next_w_expr, name = "next_period_mass_%s,%s,%s"%(dep_p.index, t.index, p.index))
+                        model.addConstr(
+                            self.population_weight_variable(dep_p, t, next_p) == next_w_expr,
+                            name="next_period_mass_%s,%s,%s" % (dep_p.index, t.index, p.index),
+                        )
 
                 # All salmon in last possible period must be extracted (5.18, 6.15)
                 last_p = dep_p.periods_after_deploy[-1]
                 for t in self.environment.get_tanks(module_idx):
-                    model.addConstr(self.population_weight_variable(dep_p, t, last_p) == self.extract_weight_variable(dep_p, t, last_p), name = "extract_last_period_%s,%s"%(dep_p.index, t.index))
+                    model.addConstr(
+                        self.population_weight_variable(dep_p, t, last_p)
+                        == self.extract_weight_variable(dep_p, t, last_p),
+                        name="extract_last_period_%s,%s" % (dep_p.index, t.index),
+                    )
 
     def add_improving_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds valid inequalities to the MIP problem that can improve the linear relaxation in the model
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -839,7 +935,6 @@ class GurobiProblemGenerator(SolutionProvider):
             is_deploy = p in self.environment.plan_release_periods
             for m in self.environment.get_modules(module_idx):
                 for t in m.tanks:
-
                     # Add improving constraint: Tank is empty if empty previous period and no transfer or deploy this period (5.20, 5.21, 6.17, 6.18)
                     expr = gp.LinExpr()
                     if is_deploy:
@@ -848,29 +943,35 @@ class GurobiProblemGenerator(SolutionProvider):
                         expr.addTerms(1, self.salmon_transferred_variable(t, p))
                     expr.addTerms(1, self.contains_salmon_variable(t, prev_p))
                     expr.addTerms(-1, self.salmon_extracted_variable(t, prev_p))
-                    model.addConstr(expr >= self.contains_salmon_variable(t, p), name = "no_transfer_deploy_%s,%s"%(p.index, t.index))
+                    model.addConstr(
+                        expr >= self.contains_salmon_variable(t, p),
+                        name="no_transfer_deploy_%s,%s" % (p.index, t.index),
+                    )
             prev_p = p
 
         for t in self.environment.get_tanks(module_idx):
-
             # Can not extract from empty tanks last period (similar to 5.20/5.21/6.17/6.18 for a period after planning horizon)
-            model.addConstr(self.salmon_extracted_variable(t, prev_p) <= self.contains_salmon_variable(t, prev_p), name = "no_extract_from_empty_last_period_%s"%t.index)
+            model.addConstr(
+                self.salmon_extracted_variable(t, prev_p) <= self.contains_salmon_variable(t, prev_p),
+                name="no_extract_from_empty_last_period_%s" % t.index,
+            )
 
         for dep_p in self.environment.plan_release_periods:
             first_extract_idx = dep_p.extract_periods[0].index
-            up_to_extract = [p for p in dep_p.periods_after_deploy if p.index <= first_extract_idx ]
+            up_to_extract = [p for p in dep_p.periods_after_deploy if p.index <= first_extract_idx]
             for m in self.environment.get_modules(module_idx):
                 delta = self.smolt_deployed_variable(m, dep_p)
                 for p in up_to_extract:
-
                     # Add improving constraint: At least one tank in module has salmon from deploy up to first possible extract period (5.22, 6.19)
                     sum_alpha = gp.LinExpr()
                     for t in m.tanks:
                         sum_alpha.addTerms(1.0, self.contains_salmon_variable(t, p))
-                    model.addConstr(gp.LinExpr(1.0, delta) <= sum_alpha, name = "before_first_extract__%s,%s,%s"%(m.index, dep_p.index, p.index))
-                
-                for t in m.tanks:
+                    model.addConstr(
+                        gp.LinExpr(1.0, delta) <= sum_alpha,
+                        name="before_first_extract__%s,%s,%s" % (m.index, dep_p.index, p.index),
+                    )
 
+                for t in m.tanks:
                     # Add improving constraint: Force alpha to be one from deploy to extraction: (5.23, 6.20)
                     expr_lhs_1 = gp.LinExpr()
                     expr_lhs_1.addTerms(2, delta)
@@ -885,11 +986,14 @@ class GurobiProblemGenerator(SolutionProvider):
                                 expr_lhs_2.addTerms(1, self.salmon_transferred_variable(t, pp))
                             if pp_idx != p_idx:
                                 expr_lhs_2.addTerms(-1, self.salmon_extracted_variable(t, pp))
-                        model.addConstr(expr_lhs_1 + expr_lhs_2 <= self.contains_salmon_variable(t, p), name = "force_alpha_%s,%s,%s"%(t.index, dep_p.index, p.index))
+                        model.addConstr(
+                            expr_lhs_1 + expr_lhs_2 <= self.contains_salmon_variable(t, p),
+                            name="force_alpha_%s,%s,%s" % (t.index, dep_p.index, p.index),
+                        )
 
     def add_symmetry_break_constraints(self, model: gp.Model, module_idx: int = -1) -> None:
         """Adds extra constraints for breaking symmetries
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - module_idx: 'int' The index of the module to build the subproblem for, or -1 for all modules.
@@ -903,17 +1007,19 @@ class GurobiProblemGenerator(SolutionProvider):
                     delta = self.smolt_deployed_variable(m, dep_p)
                     nmb_tanks = 4 if self.allow_transfer else 3
                     for t in m.tanks[:nmb_tanks]:
-                        model.addConstr(delta <= self.contains_salmon_variable(t, dep_p), name = "force_deploy_tank_%s,%s"%(t.index, dep_p.index))
+                        model.addConstr(
+                            delta <= self.contains_salmon_variable(t, dep_p),
+                            name="force_deploy_tank_%s,%s" % (t.index, dep_p.index),
+                        )
 
     def add_max_single_modules_constraints(self, model: gp.Model) -> None:
         """Adds extra constraints for modules with single production cycle
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
         """
 
         for m in self.environment.modules:
-
             sum_delta = gp.LinExpr()
             num_tanks = len(m.tanks)
             is_last_mod = m == self.environment.modules[-1]
@@ -929,50 +1035,55 @@ class GurobiProblemGenerator(SolutionProvider):
                 if dep_p == self.environment.periods[0]:
                     for t in m.tanks:
                         if t.initial_use:
-                            model.addConstr(phi == 1, name = "set_phi_first_period_%s"%m.index)
+                            model.addConstr(phi == 1, name="set_phi_first_period_%s" % m.index)
                             break
                     else:
-                        model.addConstr(phi == delta, name = "set_phi_first_period_%s"%m.index)
+                        model.addConstr(phi == delta, name="set_phi_first_period_%s" % m.index)
                 else:
-                    prev_p = next (pp for pp in self.environment.periods if pp.index == dep_p.index - 1)
+                    prev_p = next(pp for pp in self.environment.periods if pp.index == dep_p.index - 1)
                     use_expr = gp.LinExpr()
                     use_expr.addTerms(1.0, delta)
                     for t in m.tanks:
                         use_expr.addTerms(1.0, self.contains_salmon_variable(t, prev_p))
-                    model.addConstr(gp.LinExpr(1.0, phi) <= use_expr, name = "set_max_phi_%s,%s"%(m.index, dep_p.index))
-                    model.addConstr(use_expr <= gp.LinExpr(num_tanks, phi), name = "set_min_phi_%s,%s"%(m.index, dep_p.index))
+                    model.addConstr(gp.LinExpr(1.0, phi) <= use_expr, name="set_max_phi_%s,%s" % (m.index, dep_p.index))
+                    model.addConstr(
+                        use_expr <= gp.LinExpr(num_tanks, phi), name="set_min_phi_%s,%s" % (m.index, dep_p.index)
+                    )
 
                 if not is_last_mod:
-
                     # Ensure module is not deployed after next in list of modules
                     sum_delta_next.addTerms(1.0, self.smolt_deployed_variable(next_m, dep_p))
-                    model.addConstr(sum_delta_next <= sum_delta, name = "modules_chronologically_%s,%s"%(m.index, dep_p.index))
+                    model.addConstr(
+                        sum_delta_next <= sum_delta, name="modules_chronologically_%s,%s" % (m.index, dep_p.index)
+                    )
 
             # Ensure module is only deployed once
-            model.addConstr(sum_delta == 1, name = "module_deployed_once_%s"%m.index)
+            model.addConstr(sum_delta == 1, name="module_deployed_once_%s" % m.index)
 
         for dep_p in self.environment.plan_release_periods:
-
             # Limit number of active modules each period
             sum_mod = gp.LinExpr()
             for m in self.environment.modules:
                 sum_mod.addTerms(1.0, self.module_active_variable(m, dep_p))
-            model.addConstr(sum_mod <= self.max_single_modules, name = "maximum_modules_%s"%dep_p.index)
+            model.addConstr(sum_mod <= self.max_single_modules, name="maximum_modules_%s" % dep_p.index)
 
     def add_fixed_deploy_period(self, model: gp.Model, m_idx: int, dep_p_idx: int) -> None:
         """Adds extra constraint forcing a module to be deployed at a given deploy period
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraint into
             - m_idx: 'int' The index of the module with a ficed deploy
             - dep_p_idx: 'int' The index of the deploy period when the module has a fixed deploy
         """
 
-        model.addConstr(self.smolt_deployed_variables[(m_idx, dep_p_idx)] == 1.0, name = "fix_deploy_period_%s,%s"%(m_idx, dep_p_idx))
+        model.addConstr(
+            self.smolt_deployed_variables[(m_idx, dep_p_idx)] == 1.0,
+            name="fix_deploy_period_%s,%s" % (m_idx, dep_p_idx),
+        )
 
     def add_fixed_active_period(self, model: gp.Model, m_idx: int, p_idx: int) -> None:
         """Adds extra constraint forcing a module to have at least one tank with salmon at a given period
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraint into
             - m_idx: 'int' The index of the module
@@ -983,11 +1094,11 @@ class GurobiProblemGenerator(SolutionProvider):
         sum_alpha = gp.LinExpr()
         for t in m.tanks:
             sum_alpha.addTerms(1.0, self.contains_salmon_variables[(t.index, p_idx)])
-        model.addConstr(sum_alpha >= 1.0, name = "fix_module_active_%s,%s"%(m_idx, p_idx))
+        model.addConstr(sum_alpha >= 1.0, name="fix_module_active_%s,%s" % (m_idx, p_idx))
 
     def add_fixed_inactive_period(self, model: gp.Model, m_idx: int, p_idx: int) -> None:
         """Adds extra constraints forcing a module to have no tanks with salmon at a given period
-        
+
         args:
             - model: 'gp.Model' The MIP model to add the constraints into
             - m_idx: 'int' The index of the module
@@ -996,8 +1107,10 @@ class GurobiProblemGenerator(SolutionProvider):
 
         m = next(mm for mm in self.environment.modules if mm.index == m_idx)
         for t in m.tanks:
-            model.addConstr(self.contains_salmon_variables[(t.index, p_idx)] == 0.0, name = "fix_tank_inactive_%s,%s"%(t.index, p_idx))
-
+            model.addConstr(
+                self.contains_salmon_variables[(t.index, p_idx)] == 0.0,
+                name="fix_tank_inactive_%s,%s" % (t.index, p_idx),
+            )
 
     def lock_binaries(self, model: gp.Model, column: MasterColumn) -> list[gp.Constr]:
         """Adds constraints that lock all binary variables to their values in the given column from an earlier column generation.
@@ -1013,13 +1126,75 @@ class GurobiProblemGenerator(SolutionProvider):
 
         constraints = []
         for key, val in column.smolt_deployed_values.items():
-            constraints.append(model.addConstr(self.smolt_deployed_variables[key] == val, name = "lock_smolt_deployed_" + str(key)))
+            constraints.append(
+                model.addConstr(self.smolt_deployed_variables[key] == val, name="lock_smolt_deployed_" + str(key))
+            )
         for key, val in column.salmon_extracted_values.items():
-            constraints.append(model.addConstr(self.salmon_extracted_variables[key] == val, name = "lock_salmon_extracted_" + str(key)))
+            constraints.append(
+                model.addConstr(self.salmon_extracted_variables[key] == val, name="lock_salmon_extracted_" + str(key))
+            )
         for key, val in column.salmon_transferred_values.items():
-            constraints.append(model.addConstr(self.salmon_transferred_variables[key] == val, name = "lock_salmon_transferred_" + str(key)))
+            constraints.append(
+                model.addConstr(
+                    self.salmon_transferred_variables[key] == val, name="lock_salmon_transferred_" + str(key)
+                )
+            )
 
         return constraints
+
+    def lock_production_plan_by_num_tanks(
+        self, model: gp.Model, module: Module, periods_num_tanks: List[Tuple[int, int]]
+    ) -> List[gp.Constr]:
+        """Using `periods_num_tanks` as a map from period number to number of tanks in use,
+        lock these number of tanks in the `model`. If the number of tanks is not zero and
+        the next period in the list has a higher number of tanks than the current one,
+        the number for the next period is selected. This accounts for a difference in modeling
+        tanks in use in the DP and MIP models -- in DP, the additional tanks used for transferring
+        are not in use in the transfer period, while in the MIP, they are.
+        Returns the corresponding contraint references.
+        """
+
+        period_map = {p.index: p for p in self.environment.periods}
+
+        # def num_active_tanks(period_tanks):
+        #     """If transferring to a larger number of tanks in the next period,
+        #     use the number of tanks from the next period."""
+
+        constraints = []
+        for i in range(len(periods_num_tanks)):
+            p, n = periods_num_tanks[i]
+            next_n = periods_num_tanks[i + 1][1] if i + 1 < len(periods_num_tanks) else -1
+            n = next_n if n > 0 and n < next_n else n
+            constraints.append(self.lock_num_tanks(model, period_map[p], module, n))
+
+        return constraints
+
+    def lock_production_plan_by_nontransfer_num_tanks(
+        self, model: gp.Model, module: Module, periods_num_tanks: List[Tuple[int, int]]
+    ) -> List[gp.Constr]:
+        """Do the same as to `lock_production_plan_by_num_tanks`, but constain the number of tanks only
+        is is zero or if it is less than the period before. This relaxes the choice of when to do transfers.
+        Returns the corresponding contraint references."""
+
+        period_map = {p.index: p for p in self.environment.periods}
+
+        constraints = []
+        prev_n = -1
+        for i in range(len(periods_num_tanks)):
+            p, n = periods_num_tanks[i]
+            next_n = periods_num_tanks[i + 1][1] if i + 1 < len(periods_num_tanks) else -1
+            n = next_n if n > 0 and n < next_n else n
+            if n < prev_n or (prev_n <= 0 and n > prev_n) and p in period_map:
+                constraints.append(self.lock_num_tanks(model, period_map[p], module, n))
+            prev_n = n
+
+        return constraints
+
+    def lock_num_tanks(self, model: gp.Model, period: Period, module: Module, num_tanks: int) -> gp.Constr:
+        return model.addConstr(
+            sum(self.contains_salmon_variable(t, period) for t in module.tanks) == num_tanks,
+            name=f"lock_num_tanks_p{period.index}_m{module.index}_eq{num_tanks}",
+        )
 
     def remove_constraints(self, model: gp.Model, constraints: list[gp.Constr]) -> None:
         """Removes the given constraints from the MIP model.
@@ -1032,8 +1207,9 @@ class GurobiProblemGenerator(SolutionProvider):
         for constr in constraints:
             model.remove(constr)
 
-    def biomass_objective_column(self, model: gp.Model, module_idx: int, maximize: bool, neg_deploy_period: int = -1) -> MasterColumn:
-
+    def biomass_objective_column(
+        self, model: gp.Model, module_idx: int, maximize: bool, neg_deploy_period: int = -1
+    ) -> MasterColumn:
         """Builds a column for the Master Problem by solving the generated MIP problem without changing the constraints, and with an objective that minimizes or maximizes the extracted biomass.
         One of the deploy periods might be treated with oposite sign, meaning that the objective will be to minimize the extracted biomass of salmon deployed in that period if the
         general objective for the other deploy periods is to maximize the biomass, and vice versa.
@@ -1075,7 +1251,7 @@ class GurobiProblemGenerator(SolutionProvider):
         """
 
         return self.population_weight_variables[(depl_period.index, tank.index, period.index)]
-    
+
     def transfer_weight_variable(self, depl_period: Period, from_tank: Tank, to_tank: Tank, period: Period) -> gp.Var:
         """Returns the continous MIP variable for weight of transferred salmon
 
@@ -1159,7 +1335,7 @@ class GurobiProblemGenerator(SolutionProvider):
         """
 
         return self.population_weight_variable(depl_period, tank, period).X
-    
+
     def transfer_weight_value(self, depl_period: Period, from_tank: Tank, to_tank: Tank, period: Period) -> float:
         """Returns the value of the continous MIP variable for weight of transferred salmon
 
@@ -1218,26 +1394,26 @@ class GurobiProblemGenerator(SolutionProvider):
         args:
             - model: 'gp.Model' The MIP model holding the MIP problem
         """
-    
-        print("objective = %s"%model.ObjVal)
+
         for key, var in self.extract_weight_variables.items():
             if var.X > 0.5:
-                print("extract_weight(%s) = %s"%(key, var.X))
+                print("extract_weight(%s) = %s" % (key, var.X))
         for key, var in self.population_weight_variables.items():
             if var.X > 0.5:
-                print("population_weight(%s) = %s"%(key, var.X))
+                print("population_weight(%s) = %s" % (key, var.X))
         for key, var in self.transfer_weight_variables.items():
             if var.X > 0.5:
-                print("transfer_weight(%s) = %s"%(key, var.X))
+                print("transfer_weight(%s) = %s" % (key, var.X))
         for key, var in self.contains_salmon_variables.items():
             if var.X > 0.001:
-                print("contains_salmon(%s) = %s"%(key, var.X))
+                print("contains_salmon(%s) = %s" % (key, var.X))
         for key, var in self.smolt_deployed_variables.items():
             if var.X > 0.001:
-                print("smolt_deployed(%s) = %s"%(key, var.X))
+                print("smolt_deployed(%s) = %s" % (key, var.X))
         for key, var in self.salmon_extracted_variables.items():
             if var.X > 0.001:
-                print("salmon_extracted(%s) = %s"%(key, var.X))
+                print("salmon_extracted(%s) = %s" % (key, var.X))
         for key, var in self.salmon_transferred_variables.items():
             if var.X > 0.001:
-                print("salmon_transferred(%s) = %s"%(key, var.X))
+                print("salmon_transferred(%s) = %s" % (key, var.X))
+        print("objective = %s" % model.ObjVal)

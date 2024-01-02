@@ -1,9 +1,15 @@
 import time
+import sys
 import gurobipy as gp
 from GurobiProblemGenerator import GurobiProblemGenerator
 from GurobiProblemGenerator import ObjectiveProfile
 from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
 from MasterColumn import MasterColumn
+from SubproblemDP import solve_dp
+from SubproblemAgeDP import solve_dp as solve_age_dp
+
+from multiprocessing.pool import ThreadPool
+
 
 class SubProblem:
     """Represents a subproblem used for column generation to the Master Problem in the Dantzig-Wolfe decomposition algorithm"""
@@ -24,19 +30,44 @@ class SubProblem:
     Level 2 will also output the dual values of the constraints of the Master Problem.
     Level 3 will also print the solutions added from the column generation problems"""
 
-    def __init__(self, module_index: int, problem_generator: GurobiProblemGenerator, drop_solution: int) -> None:
+    use_dp_heuristic: bool
+    """If true, use the dynamic programming heuristic instead of a full MIP formulation for the subproblem."""
 
+    polish_dp_with_mip: bool
+    """If true, and `use_dp_heuristic` is true, then solve the subproblem with full MIP formulation after the DP 
+    heuristic fails to provide positive reduced cost columns."""
+
+    def __init__(
+        self,
+        module_index: int,
+        problem_generator: GurobiProblemGenerator,
+        drop_solution: int,
+        use_dp_heuristic: bool,
+    ) -> None:
         self.module_index = module_index
         self.problem_generator = problem_generator
         self.model = None
         self.print_level = drop_solution
 
+        self.use_dp_heuristic = use_dp_heuristic
+        self.polish_dp_with_mip = False
+        self.verify_dp_solution = False
+        self.bins = 250
+
     def build_model(self) -> None:
         """Builds the MIP model for the column generation subproblem"""
 
         self.model = self.problem_generator.build_module_subproblemn(self.module_index)
+        self.model.Params.LogToConsole = 1
 
-    def solve(self, period_biomass_duals: dict[int, float], yearly_production_duals: dict[int, float], convex_dual: float) -> (list[MasterColumn], list[MasterColumn]):
+    def solve(
+        self,
+        iteration: int,
+        period_biomass_duals: dict[int, float],
+        yearly_production_duals: dict[int, float],
+        convex_dual: float,
+        report_suboptimality,
+    ) -> (list[MasterColumn], list[MasterColumn]):
         """Solves the column generation subproblem, and returns the columns generated from the solutions found by the solver.
         To expand the search space in the Master Problem, one column is added for each of the 10 last solution found in the Gurobi solver algorithm,
         as long as the objective is positive. In addition, for each of the columns found, some extra columns are added
@@ -56,55 +87,144 @@ class SubProblem:
         """
 
         self.problem_generator.set_subproblem_objective(self.model, period_biomass_duals, yearly_production_duals)
-        self.model.optimize()
+        module = self.problem_generator.environment.modules[self.module_index]
 
-        # Solve and look for columns with positive cost from the 10 last feasible solutions found by the solver
         profit_columns = []
-        nmb_sol = min(10, self.model.SolCount)
-        for sol_idx in range(nmb_sol):
-            self.model.params.SolutionNumber = sol_idx
-            if self.model.PoolObjVal > convex_dual:
 
-                # Solution with positive cost found, create column to be added to Master Problem
-                obj_value = self.problem_generator.calculate_core_objective(self.module_index)
-                profit_columns.append(self.problem_generator.get_master_column(self.module_index, obj_value, False))
-        self.model.params.SolutionNumber = 0
+        #
+        # There are two ways to solve the single-module subproblem. The first one is a dynamic programming
+        # heuristic, written in Rust. The second one, below, is the same as the full MIP formulation but with only one module.
+        #
+
+        if self.use_dp_heuristic:
+            solution = solve_dp(
+                self.problem_generator.environment,
+                self.module_index,
+                period_biomass_duals,
+                yearly_production_duals,
+                self.bins,
+            )
+
+            if solution is not None:
+                production_plan_constraints = self.problem_generator.lock_production_plan_by_nontransfer_num_tanks(
+                    self.model, module, solution.period_tanks
+                )
+
+                self.model.optimize()
+                if self.model.status != gp.GRB.OPTIMAL:
+                    self.model.computeIIS()
+                    self.model.write("iis.ilp")
+                    raise Exception()
+                relaxdp_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
+
+                if self.model.ObjVal > convex_dual:
+                    margin = 1e-4 * max(abs(self.model.PoolObjVal), abs(convex_dual))
+                    if self.model.PoolObjVal - convex_dual > margin:
+                        profit_columns.append(
+                            self.problem_generator.get_master_column(self.module_index, relaxdp_obj_value, False)
+                        )
+
+                self.problem_generator.remove_constraints(self.model, production_plan_constraints)
+
+                if self.verify_dp_solution:
+                    self.model.optimize()
+                    mip_obj_value = self.problem_generator.calculate_core_objective(self.module_index)
+                    # print(f"relax_dp is suboptimal by {100.0 * (mip_obj_value / relaxdp_obj_value - 1.0):.2f}%")
+                    if report_suboptimality is not None:
+                        report_suboptimality(relaxdp_obj_value, mip_obj_value)
+
+        # Since the DP algorithm is approximate, we can fall back to the standard single-module formulation
+        # when the DP stops generating positive reduced cost columns.
+        polish = self.polish_dp_with_mip and len(profit_columns) == 0
+
+        # Run the single-module MIP as the pricing sub-problem.
+        if not self.use_dp_heuristic or polish:
+            self.model.Params.Cutoff = convex_dual
+            self.model.optimize()
+            self.model.Params.Cutoff = "default"
+
+            # Solve and look for columns with positive cost from the 10 last feasible solutions found by the solver
+            nmb_sol = min(10, self.model.SolCount)
+
+            for sol_idx in range(nmb_sol):
+                self.model.params.SolutionNumber = sol_idx
+                if self.model.PoolObjVal > convex_dual:
+                    margin = 1e-4 * max(abs(self.model.PoolObjVal), abs(convex_dual))
+                    if self.model.PoolObjVal - convex_dual > margin:
+                        # Solution with positive cost found, create column to be added to Master Problem
+                        obj_value = self.problem_generator.calculate_core_objective(self.module_index)
+                        profit_columns.append(
+                            self.problem_generator.get_master_column(self.module_index, obj_value, False)
+                        )
+
+            self.model.params.SolutionNumber = 0
 
         # For each new column generated by the solver solutions, add extra columns with the same binary values, and with biomass maximized or minimized for the different deploy periods
         biomass_columns = []
         for column in profit_columns:
-            if (self.print_level >= 3):
+            if self.print_level >= 3:
                 print("*** New column:")
                 column.drop_positive_solution()
-            constraints = self.problem_generator.lock_binaries(self.model, column)
+            production_plan_constraints = self.problem_generator.lock_binaries(self.model, column)
 
             # Add column that maximizes biomass from all deploy periods
             if self.problem_generator.objective_profile != ObjectiveProfile.BIOMASS:
                 biom_col = self.problem_generator.biomass_objective_column(self.model, self.module_index, True)
                 biomass_columns.append(biom_col)
-                if (self.print_level >= 3):
+                if self.print_level >= 3:
                     print("*** Column from max biomass:")
                     biom_col.drop_positive_solution()
 
             # Add column that minimizes biomass from all deploy periods
             biom_col = self.problem_generator.biomass_objective_column(self.model, self.module_index, False)
             biomass_columns.append(biom_col)
-            if (self.print_level >= 3):
+            if self.print_level >= 3:
                 print("*** Column from min biomass:")
                 biom_col.drop_positive_solution()
 
             for dep_p in column.deploy_periods():
-
                 # Add column that minimizes biomass from one of the deploy periods and maximizes from the others
                 biom_col = self.problem_generator.biomass_objective_column(self.model, self.module_index, True, dep_p)
                 biomass_columns.append(biom_col)
-                if (self.print_level >= 3):
-                    print("*** Column from max biomass except deploy in %s:"%dep_p)
+                if self.print_level >= 3:
+                    print("*** Column from max biomass except deploy in %s:" % dep_p)
                     biom_col.drop_positive_solution()
 
-            self.problem_generator.remove_constraints(self.model, constraints)
+            self.problem_generator.remove_constraints(self.model, production_plan_constraints)
 
         return profit_columns, biomass_columns
+
+
+def solve_subproblem(sp, iteration, period_biomass_duals, yearly_production_duals, convex_duals):
+    print("*** Searching for new column, module " + str(sp.module_index) + ", iteration " + str(iteration))
+    t0 = time.time()
+    output, subopt = [], []
+
+    def report_suboptimality(dp_obj, mip_obj):
+        subopt.append((sp.module_index, dp_obj, mip_obj))
+
+    new_cols, biomass_columns = sp.solve(
+        iteration,
+        period_biomass_duals,
+        yearly_production_duals,
+        convex_duals[sp.module_index],
+        report_suboptimality,
+    )
+    output.append(
+        "Iteration %s, subproblem %s, generated %s columns (sec)\t%s"
+        % (iteration, sp.module_index, len(new_cols), time.time() - t0)
+    )
+    print(
+        "*** "
+        + str(len(new_cols))
+        + " new columns found and added to master problem, module "
+        + str(sp.module_index)
+        + ", iteration "
+        + str(iteration)
+    )
+
+    return new_cols, biomass_columns, output, subopt
+
 
 class DecomposistionSolver:
     """A solver for the salmon production planning problem using the Dantzig-Wolfe decomposition algorithm by column generations.
@@ -136,13 +256,18 @@ class DecomposistionSolver:
         self.sub_problems = {}
         self.print_level = 1
 
-    def build_model(self) -> None:
+    def build_model(self, use_dp_heuristic: bool) -> None:
         """Builds the MIP models for the Master Problem and the column generation subproblems."""
 
         self.sub_problems = {}
         env = self.problem_generator.environment
         for m in env.modules:
-            sub_prob = SubProblem(m.index, self.problem_generator.sub_problem_generator(), self.print_level)
+            sub_prob = SubProblem(
+                m.index,
+                self.problem_generator.sub_problem_generator(),
+                self.print_level,
+                use_dp_heuristic,
+            )
             sub_prob.build_model()
             self.sub_problems[m.index] = sub_prob
 
@@ -158,7 +283,7 @@ class DecomposistionSolver:
         print("*** Generating initial columns for all modules")
         t0 = time.time()
         initial_cols = self.create_initial_columns()
-        log_times.append("Initial columns (sec)\t%s"%(time.time() - t0))
+        log_times.append("Initial columns (sec)\t%s" % (time.time() - t0))
         for initial_col in initial_cols:
             self.problem_generator.add_column(self.master_model, initial_col)
 
@@ -166,27 +291,32 @@ class DecomposistionSolver:
         # these are applied to the subproblems in order to find new columns for the master problem.
         columns_added = True
         iteration = 0
-        biomass_columns = []
+        suboptimality = []
         while columns_added:
-
             # First solve the relaxed Master Problem with the currently added columns.
             iteration += 1
             print("*** Solving master problem, iteration " + str(iteration))
             t0 = time.time()
-            period_biomass_duals, yearly_production_duals, convex_duals = self.solve_master()
-            log_times.append("Iteration %s, LP Master (sec)\t%s"%(iteration, time.time() - t0))
+            (
+                period_biomass_duals,
+                yearly_production_duals,
+                convex_duals,
+            ) = self.solve_master()
+            
+            log_times.append("Iteration %s, LP Master (sec)\t%s" % (iteration, time.time() - t0))
             if self.print_level >= 2:
                 self.problem_generator.drop_dual_values(self.master_model)
             columns_added = False
 
             # Run the column generation problems for each module
-            for sp in self.sub_problems.values():
-                print("*** Searching for new column, module " + str(sp.module_index) + ", iteration " + str(iteration))
-                t0 = time.time()
-                new_cols, new_biomass_cols = sp.solve(period_biomass_duals, yearly_production_duals, convex_duals[sp.module_index])
-                log_times.append("Iteration %s, subproblem %s, generated %s columns (sec)\t%s"%(iteration, sp.module_index, len(new_cols), time.time() - t0))
-                print("*** " + str(len(new_cols)) + " new columns found and added to master problem, module " + str(sp.module_index) + ", iteration " + str(iteration))
-
+            # with ThreadPool(1) as pool:
+            for new_cols, biomass_columns, sp_log_times, sp_suboptimality in map(
+                lambda x: solve_subproblem(*x),
+                [
+                    (sp, iteration, period_biomass_duals, yearly_production_duals, convex_duals)
+                    for sp in self.sub_problems.values()
+                ],
+            ):
                 # Add new columns to the Master Problem from solutions when solving the column generation subproblems.
                 # The additional columns from the biomass maximization/minimization objectives are only collected now and added to the Master Problem when the subproblems no longer are able to produce more columns.
                 for new_col in new_cols:
@@ -194,28 +324,14 @@ class DecomposistionSolver:
                         new_col.drop_positive_solution()
                     self.problem_generator.add_column(self.master_model, new_col)
                     columns_added = True
-                biomass_columns = biomass_columns + new_biomass_cols
 
-        # No more columns are generated, we now add the extra columns from the biomass maximization/minimization objectives and resolve the relaxed Master Problem in case this gives a better solution.
-        if biomass_columns:
-            if self.print_level >= 1:
-                print("*** Relaxed master problem solved after iteration %s"%iteration)
-                self.problem_generator.generate_solution()
-                self.problem_generator.drop_positive_solution(self.master_model)
-                print("*** Rerunning relaxed master problem with %s maximized/minimized biomass columns"%len(biomass_columns))
-            else:
-                print("*** Relaxed master problem solved after iteration %s, rerunning with %s maximized/minimized biomass columns"%(iteration, len(biomass_columns)))
+                for column in biomass_columns:
+                    self.problem_generator.add_column(self.master_model, column)
 
-            log_objectives.append("Objective solved relaxed master problem before adding %s biomass columns\t%s"%(len(biomass_columns), self.master_model.ObjVal))
-            for column in biomass_columns:
-                self.problem_generator.add_column(self.master_model, column)
-            t0 = time.time()
-            self.master_model.optimize()
-            log_times.append("LP Master with biomass columns (sec)\t%s"%(time.time() - t0))
-        else:
-            print("*** Relaxed master problem solved after iteration %s, no biomass columns to add"%iteration)
+                log_times.extend(sp_log_times)
+                suboptimality.extend(sp_suboptimality)
 
-
+        self.master_model.optimize()
         self.problem_generator.generate_solution()
         relaxed_objective = self.master_model.ObjVal
         if self.print_level >= 1:
@@ -224,21 +340,22 @@ class DecomposistionSolver:
         # If the solution to the relaxed Master Problem does not give a solution with binary decission values, we change the Master Problem to a MIP by applying the binary constraints, and resulve using the same columns as before.
         if not self.problem_generator.validate_integer_values():
             print("*** Some relaxed binary variables failed to be integers, fixing to binary")
-            log_objectives.append("Objective solved relaxed master problem\t%s"%relaxed_objective)
+            log_objectives.append("Objective solved relaxed master problem\t%s" % relaxed_objective)
             self.problem_generator.lock_binaries()
             t0 = time.time()
+            self.master_model.Params.MIPGap = 0.2 / 100.0
             self.master_model.optimize()
-            log_times.append("MIP Master (sec)\t%s"%(time.time() - t0))
+            log_times.append("MIP Master (sec)\t%s" % (time.time() - t0))
             mip_objective = self.master_model.ObjVal
-            log_objectives.append("Objective solved MIP master problem\t%s"%mip_objective)
+            log_objectives.append("Objective solved MIP master problem\t%s" % mip_objective)
             percent_under = 100.0 * (relaxed_objective - mip_objective) / relaxed_objective
-            log_objectives.append("MIP Objective below relaxed objective (%%)\t%s"%percent_under)
+            log_objectives.append("MIP Objective below relaxed objective (%%)\t%s" % percent_under)
             self.problem_generator.generate_solution()
             print("*** MIP version of master problem solved after iteration " + str(iteration))
             if self.print_level >= 1:
                 self.problem_generator.drop_positive_solution(self.master_model)
         else:
-            log_objectives.append("Objective solved relaxed master problem, binaries satisfied\t%s"%relaxed_objective)
+            log_objectives.append("Objective solved relaxed master problem, binaries satisfied\t%s" % relaxed_objective)
             print("*** All relaxed binary variables are integers in solution to relaxed master problem")
 
         " Finally output the times spent by the solvers and the the objective values of the solutions for the relaxed Master Problem and the MIP Master Problem"
@@ -246,6 +363,13 @@ class DecomposistionSolver:
             print(msg)
         for msg in log_objectives:
             print(msg)
+
+        if len(suboptimality) > 0:
+            print("Suboptimality of DP approach:")
+            for mod, dp_obj, mip_obj in suboptimality:
+                print(
+                    f" - module{mod} dp={dp_obj} mip={mip_obj} suboptimality={100.0 * ( mip_obj / dp_obj  - 1.0 ):.2f}%"
+                )
 
     def create_initial_columns(self) -> list[MasterColumn]:
         """Generates the initial columns to be added to the Master Problem.
@@ -274,7 +398,7 @@ class DecomposistionSolver:
 
     def solve_master(self) -> (dict[int, float], dict[int, float], dict[int, float]):
         """Solves the Master Problem with the currently added columns and returns get the dual values of the constraints.
-        
+
         returns:
             Three dictionaries with the dual values.
             The first dictionary holds the dual values of the constraints for the total mass of salmon in the tanks at a period. Key is period index.

@@ -1,0 +1,67 @@
+{
+    "parameters" : {
+        "smolt_price" : 160.0,
+        "min_tank_cost" : 30030.0,
+        "marginal_increase_pumping_cost" : 0.231,
+        "max_deploy_smolt" : 85000.0,
+        "min_deploy_smolt" : 5725.0,
+        "max_extract_weight" : 157500.0,
+        "max_transfer_weight" : 157500.0,
+        "min_transfer_weight" : 14300.0,
+        "max_tank_density" : 45.0,
+        "max_total_biomass" : 3900000.0,
+        "max_yearly_production" : 5500000.0,
+		"tanks_in_regulations": 28,
+        "monthly_loss" : 0.0043,
+        "harvest_yield" : 0.85
+    },
+    "modules" : {
+        "type" : "FourTanks",
+        "modules" : 9,
+        "tank_volume" : 3500.0
+    },
+    "weight_classes" : {
+        "min_weight" : 0.5,
+        "weight_step" : 0.1,
+        "classes" : 86,
+        "post_smolt_revenue" : [
+            [0.5, 40.0],
+            [1.0, 50.0]
+        ],
+        "harvest_revenue_pr_kg" : [
+            [2.0, 47.0],
+            [3.0, 53.0],
+            [4.0, 55.0],
+            [5.0, 57.0],
+            [6.0, 60.0],
+            [7.0, 60.0],
+            [8.0, 61.0]
+        ]
+    },
+    "periods" : {
+        "first_planning_year" : 2023,
+        "planning_periods" : 62,
+        "pre_planning_periods" : 18,
+        "deploy_months" : [ 0, 1, 2, 6, 7, 8],
+        "latest_deploy" : 50
+    },
+    "post_deploy" : {
+        "weight_variance_portion" : 0.15,
+        "transfer_weight" : {
+            "minimum" : 0.5,
+            "maximum" : 2.5
+        },
+        "post_smolt_weight" : {
+            "minimum" : 0.8,
+            "maximum" : 1.5
+        },
+        "harvest_weight" : {
+            "minimum" : 4.0,
+            "maximum" : 5.5
+        },
+        "expected_weights_file" : "..\\Common\\ExpectedWeights.csv",
+        "feed_costs_file" : "..\\Common\\FeedCosts.csv",
+        "oxygen_price" : 0.0026,
+        "oxygen_consumption_file" : "..\\Common\\OxygenConsumption.csv"
+    }
+}

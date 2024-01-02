@@ -5,6 +5,7 @@ import gurobipy as gp
 import json
 import os
 import math
+from DecompCyclesSolver import decomp_cycles_solve
 from SolutionProvider import SolutionProvider
 from GurobiProblemGenerator import GurobiProblemGenerator
 from GurobiProblemGenerator import ObjectiveProfile
@@ -24,7 +25,7 @@ class Iteration:
         self.solution_output_file = solution_output_file
         self.initial_populations = initial_populations
 
-def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, use_decomposistion: bool, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str) -> None:
+def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: bool, use_decomposistion: int, add_symmetry_breaks: bool, max_single_modules: int, fixed_values_file: str, use_dp_heuristic :bool) -> None:
 
     file_dir = os.path.dirname(file_path)
     iteration = read_iteration_setup(file_path)
@@ -34,20 +35,29 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
 
     sol_prov: SolutionProvider = None
     time0 = time.time()
-    if use_decomposistion:
+
+    # Decomposition 0 is the full MIP formulation
+    # Decomposition 1 is the column generation model where the columns are single-module production plans
+    # Decomposition 2 is the column generation model where the columns are production cycles (deploy to harvest of a single module).
+
+    if use_decomposistion == 2:
+        sol_prov, model = decomp_cycles_solve(environment, objective, allow_transfer, add_symmetry_breaks)
+
+    elif use_decomposistion == 1:
         gmpg = GurobiMasterProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gmpg
 
         decomp_solver = DecomposistionSolver(gmpg)
-        decomp_solver.build_model()
+        decomp_solver.build_model(use_dp_heuristic)
         decomp_solver.optimize()
+        
     else:
         gpg = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gpg
         model = gpg.build_model()
 
         if fixed_values_file != "":
-            fixed_values_file_path = os.path.join(file_dir, fixed_values_file)
+            fixed_values_file_path = os.path.join(file_dir.replace("\\","/"), fixed_values_file.replace("\\","/"))
             with open(fixed_values_file_path, "r") as input_fixed_values_file:
                 fixed_values_json = json.load(input_fixed_values_file)
                 gpg.add_fixed_values(model, fixed_values_json)
@@ -125,7 +135,7 @@ def print_variables(variables: list[gp.Var], min_val: float) -> None:
             print(v.VarName + " = " + str(v.X))
 
 def read_iteration_setup(file_path: str) -> Iteration:
-
+    file_path = file_path.replace("\\","/")
     with open(file_path, "r") as input_file:
         data = json.load(input_file)
         core_setup_file = data["core_setup"]
@@ -146,7 +156,6 @@ def read_iteration_setup(file_path: str) -> Iteration:
     return Iteration(current_iteration, max_iteration, unextended_planning_years, core_setup_file, input_file, solution_output_file, initial_populations)
 
 def write_solution_file(file_path: str, environment: Environment, planning_years: int, sol_prov: SolutionProvider, allow_transfer: bool) -> Iteration:
-
     modules = []
     for m in environment.modules:
         tank_indices = []
@@ -304,16 +313,22 @@ if __name__ == "__main__":
     objective = ObjectiveProfile.PROFIT
     allow_transfer = True
     add_symmetry_breaks = False
-    use_decomposistion = False
+
+    # Decomposition 0 is the full MIP formulation
+    # Decomposition 1 is the column generation model where the columns are single-module production plans
+    # Decomposition 2 is the column generation model where the columns are production cycles (deploy to harvest of a single module).
+    use_decomposistion = 0
     max_single_modules = 0
     fixed_values_file = ""
+    use_dp_heuristic = False
 
     opt_arguments = sys.argv[2:]
-    options = "d:f:m:o:s:t:"
-    long_options = ["Decomposition=", "Fixed=", "Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules="]
+    options = "d:f:m:o:s:t:h:"
+    long_options = ["Decomposition=", "Fixed=", "Objective=", "Symmetry_break=", "Transfer=", "Max_single_modules=", "Heuristic="]
 
     try:
         arguments, values = getopt.getopt(opt_arguments, options, long_options)
+        print(arguments, values)
 
         for argument, value in arguments:
 
@@ -326,16 +341,21 @@ if __name__ == "__main__":
             elif argument in ("-t", "--Transfer"):
                 allow_transfer = parse_bool(value, True)
 
-            elif argument in ("-d" "--Decomposition"):
-                use_decomposistion = parse_bool(value, True)
+            elif argument in ("-d", "--Decomposition"):
+                use_decomposistion = parse_int(value, 0)
 
-            elif argument in ("-m" "--Max_single_modules"):
+            elif argument in ("-m", "--Max_single_modules"):
                 max_single_modules = parse_int(value, 0)
 
-            elif argument in ("-f" "--Fixed"):
+            elif argument in ("-f", "--Fixed"):
                 fixed_values_file = value
 
-        run_iteration(file_path, objective, allow_transfer, use_decomposistion, add_symmetry_breaks, max_single_modules, fixed_values_file)
+            elif argument in ("-h", "--Heuristic"):
+                use_dp_heuristic = parse_bool(value, False)
+
+        print("USE DP HEURISTIC", use_dp_heuristic)
+
+        run_iteration(file_path, objective, allow_transfer, use_decomposistion, add_symmetry_breaks, max_single_modules, fixed_values_file, use_dp_heuristic)
 
     except getopt.error as err:
         print(str(err))
