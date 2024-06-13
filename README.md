@@ -18,6 +18,21 @@ This repository contains an implementation of their model and several
 decomposition schemes -- the most effective of them being the production cycle
 decomposition. See the solver descriptions below.
 
+The repository is structured as follows:
+ 
+ * `Data` contains input and output data. See the description in `Data/Folder Format.txt` and the section on *iterations* below.
+ * `experiments` contains various output files from experiments.
+ * `fiskologisk` is the Python module containing the solver.
+ * `scripts` contains various tools.
+ * `ui` contains a simple TypeScript/React visualization tool for the finished production plans.
+ * `run_iteration.py` is the main executable for the solver.
+
+ 
+ The visualization tool with a set of pre-computed production plans is also available on the web: https://optimization.pages.sintef.no/fiskologisk/
+
+ ![Production plan visualization tool example view](experiments/gui-example.png)
+
+
 ## Requirements and installation
 
 Requirements: 
@@ -67,7 +82,7 @@ branching, so column generation is limited to the root node (sometimes called
 the *price-and-branch* approach). Typically, these decompositions give good
 lower bounds, so your solution is often within a few percent of the optimal, but
 to get fully optimal solutions would require explicit branching with column
- generation (*branch-and-price*).
+ generation in each node (*branch-and-price*).
 
 ### Full MIP
 
@@ -137,7 +152,7 @@ python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration3.json --Decomposi
 # Contributors
 
 The code in this repository was mainly written by Kjell Fredrik Pettersen,
-Giorgio Sartor, and Bjørnar Luteberget in 2023. The development was funded by
+Giorgio Sartor, Bjørnar Luteberget, and Eirik Kjeken in 2023. The development was funded by
 *SINTEF's 2023 strategisk egenfinansiert prosjekt Fiskologisk*. This work is
 also heavily based on the modeling and case study performed by Johan Moldeklev
 Føsund and Erlend Hjelle Strandkleiv in their 
