@@ -1,9 +1,9 @@
 from dataclasses import dataclass
+import importlib
 import json
 from math import prod
 import time
 from typing import List, Optional, Tuple
-import dp_heur
 from fiskologisk.domain.Environment import Environment
 
 #
@@ -28,10 +28,22 @@ def solve_dp(
     yearly_production_duals: dict[int, float],
     bins: int,
 ) -> Optional[DPSolution]:
+
+    # We are importing the low-level dynamic programming implementation
+    # dynamically, so that a user that doesn't have the Rust build tools
+    # can still run the other solvers. If importing fails, you probably
+    # need to install `maturin` and run:
+    #   cd fiskologisk/solvers/dp_heur; maturin develop --release
+    #
+    try:
+        dp_heur = importlib.import_module("dp_heur")
+    except Exception:
+        print("Importing `dp_heur` failed. You probably need to compile the Rust DP module. See the README file.")
+        raise
+
     #
     # Check some problem definition limits for the algorithm.
     #
-
     module_tanks = environment.modules[module_idx].tanks
     if len(module_tanks) >= 6:
         print("Warning: DP heuristic solver maybe unsuitable with a large number of tanks in a module")

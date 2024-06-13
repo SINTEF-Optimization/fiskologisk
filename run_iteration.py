@@ -12,7 +12,7 @@ from fiskologisk.solvers.GurobiProblemGenerator import ObjectiveProfile
 from fiskologisk.solvers.GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
 from fiskologisk.solvers.DecomposistionSolver import DecomposistionSolver
 from fiskologisk.domain.Environment import Environment
-from read_problem import read_core_problem
+from fiskologisk.read_problem import read_core_problem
 
 class Iteration:
 
@@ -34,6 +34,7 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     environment.add_initial_populations(iteration.initial_populations)
 
     sol_prov: SolutionProvider = None
+    model :gp.Model = None
     time0 = time.time()
 
     # Decomposition 0 is the full MIP formulation
@@ -41,17 +42,21 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
     # Decomposition 2 is the column generation model where the columns are production cycles (deploy to harvest of a single module).
 
     if use_decomposistion == 2:
+        print(" ** Starting single-module production-cycle decomposition solver.")
         sol_prov, model = decomp_cycles_solve(environment, objective, allow_transfer, add_symmetry_breaks)
 
     elif use_decomposistion == 1:
+        print(" ** Starting single-module full-horizon decomposition solver.")
         gmpg = GurobiMasterProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gmpg
 
         decomp_solver = DecomposistionSolver(gmpg)
         decomp_solver.build_model(use_dp_heuristic)
         decomp_solver.optimize()
+        model = decomp_solver.master_model
         
     else:
+        print(" ** Starting full MIP solve.")
         gpg = GurobiProblemGenerator(environment, objective_profile = objective, allow_transfer = allow_transfer, add_symmetry_breaks = add_symmetry_breaks, max_single_modules = max_single_modules)
         sol_prov = gpg
         model = gpg.build_model()
@@ -63,19 +68,15 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
                 gpg.add_fixed_values(model, fixed_values_json)
 
         model.optimize()
-        sol_prov.drop_positive_solution(model)
-
-        #print_variables(list(gpg.extract_weight_variables.values()), 0.5)
-        #print_variables(list(gpg.population_weight_variables.values()), 0.5)
-        #print_variables(list(gpg.transfer_weight_variables.values()), 0.5)
-        #print_variables(list(gpg.contains_salmon_variables.values()), 0.5)
-        #print_variables(list(gpg.smolt_deployed_variables.values()), 0.5)
-        #print_variables(list(gpg.salmon_extracted_variables.values()), 0.5)
-        #print_variables(list(gpg.salmon_transferred_variables.values()), 0.5)
-        #print_variables(list(gpg.module_active_variables.values()), 0.5)
 
     time1 = time.time()
-    print("Entire problem (sec)\t%s"%(time1-time0))
+
+    if model.SolCount == 0:
+        print(f" ** No solution found.")
+    else:
+        print(f" ** Best solution objective value: {model.ObjVal:.2f}")
+
+    print(f" ** Solver finished after {time1-time0:.3f}s")
 
     if iteration.current_iteration < iteration.max_iteration:
 
@@ -122,12 +123,15 @@ def run_iteration(file_path: str, objective: ObjectiveProfile, allow_transfer: b
         outfile_path_local = iteration.input_file.replace("%N", str(next_iteration))
         outfile_path = os.path.join(file_dir, outfile_path_local)
         json_object = json.dumps(run_file_setup, indent=4)
+        print(f" ** Non-final iteration {iteration.current_iteration}/{iteration.max_iteration}. Writing initial tank contents to {outfile_path}")
         with open(outfile_path, "w") as outfile:
             outfile.write(json_object)
 
     if iteration.solution_output_file != None:
         solution_output_file_local = iteration.solution_output_file.replace("%N", str(iteration.current_iteration))
-        write_solution_file(os.path.join(file_dir, solution_output_file_local), environment, iteration.unextended_planning_years, sol_prov, allow_transfer)
+        output_filename = os.path.join(file_dir, solution_output_file_local)
+        print(f" ** Writing solution to {output_filename}")
+        write_solution_file(output_filename, environment, iteration.unextended_planning_years, sol_prov, allow_transfer)
 
 def print_variables(variables: list[gp.Var], min_val: float) -> None:
     for v in variables:
@@ -309,6 +313,25 @@ def parse_int(value: str, default: int) -> int:
     return result
 
 if __name__ == "__main__":
+    print("** Fiskologisk production planning v0.2")
+
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <PROBLEMFILE> [OPTIONS]*")
+        print("  The options are:")
+        print("   --Objective OBJECTIVE  - where OBJECTIVE is \"profit\" or \"biomass\"")
+        print("   --Symmetry_break BOOL")
+        print("   --Transfer BOOL")
+        print("   --Decomposition 0  - solve the full MIP formulation")
+        print("   --Decomposition 1  - solve the column generation model with single-module full-horizon subproblems")
+        print("   --Decomposition 2  - solve the column generation model with single-module single-production-cycle subproblems")
+        print("   --Max_single_modules INT")
+        print("   --Fixed FILE  - file containing additional restrictions to fixed values for some variables")
+        print("   --Heuristic BOOL  - use the DP heuristic in decomposition 1")
+        print("")
+        print("See the README file for an explanation of iterations and example use of this program.")
+        print("")
+        sys.exit(1)
+
     file_path = sys.argv[1]
     objective = ObjectiveProfile.PROFIT
     allow_transfer = True
@@ -328,7 +351,6 @@ if __name__ == "__main__":
 
     try:
         arguments, values = getopt.getopt(opt_arguments, options, long_options)
-        print(arguments, values)
 
         for argument, value in arguments:
 
@@ -352,8 +374,6 @@ if __name__ == "__main__":
 
             elif argument in ("-h", "--Heuristic"):
                 use_dp_heuristic = parse_bool(value, False)
-
-        print("USE DP HEURISTIC", use_dp_heuristic)
 
         run_iteration(file_path, objective, allow_transfer, use_decomposistion, add_symmetry_breaks, max_single_modules, fixed_values_file, use_dp_heuristic)
 
