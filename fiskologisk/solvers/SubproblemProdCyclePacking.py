@@ -3,10 +3,21 @@ from math import prod
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 import gurobipy as gp
-from Environment import Environment
-from GurobiProblemGenerator import GurobiProblemGenerator
-from Module import Module
+from fiskologisk.domain.Environment import Environment
+from fiskologisk.solvers.GurobiProblemGenerator import GurobiProblemGenerator
+from fiskologisk.domain.Module import Module
 
+#
+# PACKING OF PRODUCTION CYCLES
+#
+# This is an experiment from 2023-12-18 that was not successful, and is not
+# currently used anywhere.
+#
+# This solves the single-module full-horizon production planning by planning all
+# combinations of fixed deploy and harvest times and then selecting an optimal
+# subset of non-overlapping production plans (by dynamic programming).
+# 
+#
 
 @dataclass
 class DPSolution:
@@ -28,7 +39,7 @@ class PeriodInfo:
     extract_periods: Set[int]
 
 
-def solve_dp(
+def solve_prod_cycle_packing(
     module: Module,
     problem_generator: GurobiProblemGenerator,
     model: gp.Model,
@@ -138,4 +149,4 @@ def solve_dp(
     print("NODES", n_nodes)
     print("MIPS", n_evals)
 
-    raise Exception()
+    raise Exception("implementation unfinished")

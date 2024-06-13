@@ -1,4 +1,4 @@
-from Tank import Tank
+from fiskologisk.domain.Tank import Tank
 
 class Module:
     """

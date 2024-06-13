@@ -4,7 +4,15 @@ from math import prod
 import time
 from typing import List, Optional, Tuple
 import dp_heur
-from Environment import Environment
+from fiskologisk.domain.Environment import Environment
+
+#
+# This is a solver for the single-module full-horizon planning problem
+# that calls out to a library implemented in Rust. The Rust module `dp_heur`
+# must be installed with maturin, e.g. `maturin develop --release`, for this
+# to work. The approach is to discretize biomass into a fixed number of levels
+# and do dynamic programming over the resulting state space graph.
+#
 
 
 @dataclass

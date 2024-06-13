@@ -4,13 +4,13 @@ import time
 import sys
 from typing import Dict, List, Tuple
 import gurobipy as gp
-from Environment import Environment
-from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
-from GurobiProblemGenerator import GurobiProblemGenerator, ObjectiveProfile
-from Module import Module
-from Period import Period
-from SolutionProvider import SolutionProvider
-from Tank import Tank
+from fiskologisk.domain.Environment import Environment
+from fiskologisk.solvers.GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
+from fiskologisk.solvers.GurobiProblemGenerator import GurobiProblemGenerator, ObjectiveProfile
+from fiskologisk.domain.Module import Module
+from fiskologisk.domain.Period import Period
+from fiskologisk.SolutionProvider import SolutionProvider
+from fiskologisk.domain.Tank import Tank
 from collections import Counter
 
 

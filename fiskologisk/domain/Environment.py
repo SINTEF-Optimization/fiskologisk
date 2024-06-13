@@ -1,10 +1,10 @@
 from typing import Dict
-from Module import Module
-from Tank import Tank
-from Period import Period
-from Year import Year
-from Parameters import Parameters
-from WeightClass import WeightClass
+from fiskologisk.domain.Module import Module
+from fiskologisk.domain.Tank import Tank
+from fiskologisk.domain.Period import Period
+from fiskologisk.domain.Year import Year
+from fiskologisk.domain.Parameters import Parameters
+from fiskologisk.domain.WeightClass import WeightClass
 
 class Environment:
     """

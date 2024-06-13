@@ -1,12 +1,11 @@
 import time
 import sys
 import gurobipy as gp
-from GurobiProblemGenerator import GurobiProblemGenerator
-from GurobiProblemGenerator import ObjectiveProfile
-from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
-from MasterColumn import MasterColumn
-from SubproblemDP import solve_dp
-from SubproblemAgeDP import solve_dp as solve_age_dp
+from fiskologisk.solvers.GurobiProblemGenerator import GurobiProblemGenerator
+from fiskologisk.solvers.GurobiProblemGenerator import ObjectiveProfile
+from fiskologisk.solvers.GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
+from fiskologisk.MasterColumn import MasterColumn
+from fiskologisk.solvers.SubproblemDP import solve_dp
 
 from multiprocessing.pool import ThreadPool
 

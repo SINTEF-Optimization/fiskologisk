@@ -1,15 +1,15 @@
 import json
 import csv
 import os
-from Environment import Environment
-from Parameters import Parameters
-from Module import Module
-from Tank import Tank
-from Year import Year
-from Period import Period
-from Period import PeriodAfterDeployData
-from WeightClass import WeightClass
-from weight_distribution import get_weight_distributions
+from fiskologisk.domain.Environment import Environment
+from fiskologisk.domain.Parameters import Parameters
+from fiskologisk.domain.Module import Module
+from fiskologisk.domain.Tank import Tank
+from fiskologisk.domain.Year import Year
+from fiskologisk.domain.Period import Period
+from fiskologisk.domain.Period import PeriodAfterDeployData
+from fiskologisk.domain.WeightClass import WeightClass
+from fiskologisk.domain.weight_distribution import get_weight_distributions
 
 def read_core_problem(dir : str, local_file_path : str) -> Environment:
     """Reads the model with empty initial conditions used for building the MIP problem for landbased salmon farming

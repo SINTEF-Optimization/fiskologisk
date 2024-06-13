@@ -4,7 +4,23 @@ from math import prod
 from typing import Dict, List, Optional, Set, Tuple
 import gurobipy as grb
 
-from Environment import Environment
+from fiskologisk.domain.Environment import Environment
+
+#
+# STATE+BIOMASS FLOW MIP IN STATE-EXPANDED NETWORK
+#
+# This is an experiment from 2023-11-27 that was not particularly successful, 
+# and is not currently used anywhere.
+# 
+# We solve a single-module full-horizon planning problem by creating a state 
+# space graph. As in the DP approaches, the node in state space graph determines 
+# the time and the age of the fish and the number of tanks in use, but does not 
+# discretize the biomass. We solve the planning problem as a two flow problem over the 
+# state space graph where the binary *state flow* determines a path through one state
+# for each time step, and the *biomass flow* from one node to a successor is deactivated
+# when the state flow does not go over this edge.
+#
+#
 
 
 @dataclass(frozen=True)
@@ -21,7 +37,7 @@ class DPSolution:
     period_tanks: List[Tuple[int, int]]
 
 
-def solve_dp(
+def solve_state_bio_flow_mip(
     environment: Environment,
     module_idx: int,
     period_biomass_duals: dict[int, float],
