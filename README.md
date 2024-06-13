@@ -45,10 +45,10 @@ Three such initial iterations seemed to produce a reasonable starting state.
 A complete run of the planning iterations would look like:
 
 ```
-python run_iteration.py 
-python run_iteration.py 
-python run_iteration.py 
-python run_iteration.py 
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration0.json
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration1.json
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration2.json
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration3.json
 ```
 
 In performance evaluations, we consider only the last command invocation to
@@ -60,7 +60,14 @@ a reasonable initial state for the facility.
 
 The program can be configured to use different solver implementations by giving
 the command line parameters `--Decomposition 0/1/2` and 
-`--Use_heuristic true/false`. Each configuration is described briefly below.
+`--Heuristic true/false`. Each configuration is described briefly below.
+
+Note that for the decomposition approaches, we have not yet implemented
+branching, so column generation is limited to the root node (sometimes called
+the *price-and-branch* approach). Typically, these decompositions give good
+lower bounds, so your solution is often within a few percent of the optimal, but
+to get fully optimal solutions would require explicit branching with column
+ generation (*branch-and-price*).
 
 ### Full MIP
 
@@ -70,25 +77,25 @@ The complete MIP model for all decisions, based on the model described in
 As it is the default setting, it is executed by running: 
 
 ```
-python run_iteration.py 
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration3.json
 ```
 
 ... or, explicitly:
 
 ```
-python run_iteration.py --Decomposition 0
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration3.json --Decomposition 0
 ```
 
 ### Single-module full-horizon MIP decomposition
 
-Also described in the same [Master's thesis](https://ntnuopen.ntnu.no/ntnu-xmlui/handle/11250/3108221),
-this algorithm decomposes decisions about each module into separate subproblems.
-The subproblems are solved using the same MIP formulation as in the full MIP,
-but the solutions of the different modules are combined in a master MIP problem 
-using column generation. Executed by running:
+Also described in the same Master's thesis, this algorithm decomposes decisions
+about each module into separate subproblems. The subproblems are solved using
+the same MIP formulation as in the full MIP, but the solutions of the different
+modules are combined in a master MIP problem using column generation. Executed
+by running:
 
 ```
-python run_iteration.py --Decomposition 1
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration3.json --Decomposition 1
 ```
 
 ### Single-module full-horizon decomposition with custom DP subproblem solver
@@ -111,19 +118,19 @@ maturin develop --release
 Then, the algorithm is executed by running:
 
 ```
-python run_iteration.py --Decomposition 1 --Use_heuristic true
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration3.json --Decomposition 1 --Heuristic true
 ```
 
 ### Production-cycle decomposition
 
-This algorithm uses a decomposition where decisions pertaning to a single
+This algorithm uses a decomposition where decisions pertaining to a single
 production cycle is treated as a subproblem, and production-cycle solutions
 are packed into the overall production plan by a set packing MIP formulation.
 
 Executed by running:
 
 ```
-python run_iteration.py --Decomposition 2
+python run_iteration.py Data/Decomp_M2_T4_Y4_E14_P18/Iteration3.json --Decomposition 2
 ```
 
 
