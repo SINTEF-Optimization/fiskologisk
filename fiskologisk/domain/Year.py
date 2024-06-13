@@ -1,4 +1,4 @@
-from Period import Period
+from fiskologisk.domain.Period import Period
 
 class Year:
     """

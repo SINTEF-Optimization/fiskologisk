@@ -3,13 +3,13 @@ from typing import List, Tuple
 import gurobipy as gp
 from gurobipy import GRB
 from enum import Enum
-from SolutionProvider import SolutionProvider
-from Environment import Environment
-from Period import Period
-from Year import Year
-from Module import Module
-from Tank import Tank
-from MasterColumn import MasterColumn
+from fiskologisk.SolutionProvider import SolutionProvider
+from fiskologisk.domain.Environment import Environment
+from fiskologisk.domain.Period import Period
+from fiskologisk.domain.Year import Year
+from fiskologisk.domain.Module import Module
+from fiskologisk.domain.Tank import Tank
+from fiskologisk.MasterColumn import MasterColumn
 
 
 class ObjectiveProfile(Enum):

@@ -1,13 +1,13 @@
 import gurobipy as gp
 from gurobipy import GRB
-from Environment import Environment
-from GurobiProblemGenerator import GurobiProblemGenerator
-from GurobiProblemGenerator import ObjectiveProfile
-from MasterColumn import MasterColumn
-from Period import Period
-from SolutionProvider import SolutionProvider
-from Tank import Tank
-from Module import Module
+from fiskologisk.domain.Environment import Environment
+from fiskologisk.solvers.GurobiProblemGenerator import GurobiProblemGenerator
+from fiskologisk.solvers.GurobiProblemGenerator import ObjectiveProfile
+from fiskologisk.MasterColumn import MasterColumn
+from fiskologisk.domain.Period import Period
+from fiskologisk.SolutionProvider import SolutionProvider
+from fiskologisk.domain.Tank import Tank
+from fiskologisk.domain.Module import Module
 
 class GurobiMasterProblemGenerator(SolutionProvider):
     """

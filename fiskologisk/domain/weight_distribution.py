@@ -1,5 +1,5 @@
 import math
-from WeightClass import WeightClass
+from fiskologisk.domain.WeightClass import WeightClass
 
 def get_weight_distributions(weight_classes: list[WeightClass], expected_weights: list[list[float]], variance_portion: float, max_weight: float) -> list[list[list[float]]]:
     """Calculates the weight distributions into weight classes for different periods after different deploy periods

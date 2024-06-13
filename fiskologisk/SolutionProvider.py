@@ -1,6 +1,6 @@
-from Period import Period
-from Tank import Tank
-from Module import Module
+from fiskologisk.domain.Period import Period
+from fiskologisk.domain.Tank import Tank
+from fiskologisk.domain.Module import Module
 
 class SolutionProvider:
     """Base class for a provider of the values of the variables in a solution to the MIP problem for landbased salmon farming if a solution is found."""
