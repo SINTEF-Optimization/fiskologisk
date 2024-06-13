@@ -5,13 +5,13 @@ import gurobipy as gp
 import json
 import os
 import math
-from DecompCyclesSolver import decomp_cycles_solve
-from SolutionProvider import SolutionProvider
-from GurobiProblemGenerator import GurobiProblemGenerator
-from GurobiProblemGenerator import ObjectiveProfile
-from GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
-from DecomposistionSolver import DecomposistionSolver
-from Environment import Environment
+from fiskologisk.solvers.DecompCyclesSolver import decomp_cycles_solve
+from fiskologisk.SolutionProvider import SolutionProvider
+from fiskologisk.solvers.GurobiProblemGenerator import GurobiProblemGenerator
+from fiskologisk.solvers.GurobiProblemGenerator import ObjectiveProfile
+from fiskologisk.solvers.GurobiMasterProblemGenerator import GurobiMasterProblemGenerator
+from fiskologisk.solvers.DecomposistionSolver import DecomposistionSolver
+from fiskologisk.domain.Environment import Environment
 from read_problem import read_core_problem
 
 class Iteration:
